@@ -13,8 +13,8 @@ MCP server that wraps the `@tested/cli` binary and exposes three coverage tools 
 This package is private during the validation phase. Clone or copy the `mcp/` directory and run:
 
 ```bash
-npm install
-npm run build
+pnpm install
+pnpm run build
 ```
 
 The built binary is at `dist/tested-mcp.js`.
@@ -136,9 +136,9 @@ Returns a per-file line-count summary plus rolled-up patch and project statistic
 ## Development
 
 ```bash
-npm run build       # compile to dist/
-npm test            # all tests (unit + integration)
-npm run typecheck   # TypeScript strict check
+pnpm run build       # compile to dist/
+pnpm test            # all tests (unit + integration)
+pnpm run typecheck   # TypeScript strict check
 ```
 
 The integration test spawns the built binary over stdio and calls all 3 tools against the CLI repo's own coverage data.
