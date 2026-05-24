@@ -1,0 +1,35 @@
+{
+  "name": "@tested/mcp",
+  "version": "0.0.1",
+  "description": "MCP server exposing tested coverage tools over stdio for Claude Code / Cursor / Claude API.",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "tested-mcp": "./dist/tested-mcp.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx bin/tested-mcp.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "zod": "3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "tsup": "8.3.5",
+    "tsx": "4.19.2",
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
+  }
+}
