@@ -11,6 +11,7 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -18,6 +19,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const MCP_BIN = resolve(__dirname, '../../dist/tested-mcp.js');
 const CLI_REPO = resolve(__dirname, '../../../cli');
+const CLI_BIN = resolve(CLI_REPO, 'dist/tested.js');
+
+// Integration tests need the sibling @tested/cli repo to be checked out
+// and built. That holds in local dev but not in the per-package CI
+// workflow that only checks out this repo.
+const CLI_AVAILABLE = existsSync(CLI_BIN);
 
 // The callTool return type has an index signature [x: string]: unknown which
 // shadows the typed properties. We use a local interface to recover them.
@@ -35,9 +42,11 @@ let client: Client;
 let transport: StdioClientTransport;
 
 beforeAll(async () => {
+  if (!CLI_AVAILABLE) return;
   transport = new StdioClientTransport({
     command: 'node',
     args: [MCP_BIN],
+    env: { ...process.env, TESTED_BIN: CLI_BIN },
   });
 
   client = new Client({ name: 'test-client', version: '0.0.1' });
@@ -45,10 +54,11 @@ beforeAll(async () => {
 }, 15_000);
 
 afterAll(async () => {
+  if (!CLI_AVAILABLE) return;
   await client.close();
 }, 10_000);
 
-describe('stdio integration', () => {
+describe.skipIf(!CLI_AVAILABLE)('stdio integration', () => {
   it('lists exactly 3 tools', async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
