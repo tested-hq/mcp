@@ -6,8 +6,11 @@
  *   coverage.explain            — coverage status for a specific line
  *   coverage.get_summary        — per-file line-count summary for the diff
  *
- * Tool names use dot notation which is supported by the SDK; some hosts
- * display them as "coverage > get_uncovered_diff" etc.
+ * Tool names use dot notation; the SDK accepts arbitrary strings as tool names.
+ *
+ * inputSchema is passed as a raw Zod shape (Record<string, ZodTypeAny>) so the
+ * SDK can infer argument types in the callback via ShapeOutput<Args>. Passing a
+ * z.object() wrapper instead would produce unknown callback args.
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -15,6 +18,15 @@ import { z } from 'zod';
 import { explain } from './tools/explain.js';
 import { getUncoveredDiff } from './tools/get_uncovered_diff.js';
 import { getSummary } from './tools/get_summary.js';
+
+// ── Shared raw shapes ──────────────────────────────────────────────────────
+
+const cwdField = z.string().describe('Absolute path to the repository root.');
+const baseField = z
+  .string()
+  .optional()
+  .default('origin/main')
+  .describe('Git ref to diff against. Defaults to origin/main.');
 
 export function createServer(): McpServer {
   const server = new McpServer({
@@ -30,34 +42,16 @@ export function createServer(): McpServer {
       description:
         'Returns the uncovered line/branch/function ranges for every file in the current diff. ' +
         'Use this to understand which code added in the current branch lacks test coverage.',
-      inputSchema: z.object({
-        cwd: z.string().describe('Absolute path to the repository root.'),
-        base: z
-          .string()
-          .optional()
-          .default('origin/main')
-          .describe('Git ref to diff against. Defaults to origin/main.'),
-      }),
-      outputSchema: z.object({
-        files: z.array(
-          z.object({
-            path: z.string(),
-            ranges: z.array(
-              z.object({
-                start: z.number().int(),
-                end: z.number().int(),
-                kind: z.enum(['line', 'branch', 'function']),
-              }),
-            ),
-          }),
-        ),
-      }),
+      inputSchema: {
+        cwd: cwdField,
+        base: baseField,
+      },
     },
     async ({ cwd, base }) => {
-      const result = await getUncoveredDiff({ cwd, base: base ?? 'origin/main' });
+      const result = await getUncoveredDiff({ cwd, base });
       return {
         content: [{ type: 'text', text: JSON.stringify(result) }],
-        structuredContent: result,
+        structuredContent: result as Record<string, unknown>,
       };
     },
   );
@@ -70,25 +64,18 @@ export function createServer(): McpServer {
       description:
         'Returns whether a specific line is covered and why, plus a code excerpt. ' +
         'Provide the location as "relative/path/to/file.ts:42".',
-      inputSchema: z.object({
-        cwd: z.string().describe('Absolute path to the repository root.'),
+      inputSchema: {
+        cwd: cwdField,
         location: z
           .string()
           .describe('File and line in the form "path/to/file.ts:42".'),
-      }),
-      outputSchema: z.object({
-        path: z.string(),
-        line: z.number().int(),
-        uncovered: z.boolean(),
-        reason: z.string(),
-        codeExcerpt: z.string(),
-      }),
+      },
     },
     async ({ cwd, location }) => {
       const result = await explain({ cwd, location });
       return {
         content: [{ type: 'text', text: JSON.stringify(result) }],
-        structuredContent: result,
+        structuredContent: result as Record<string, unknown>,
       };
     },
   );
@@ -101,42 +88,16 @@ export function createServer(): McpServer {
       description:
         'Returns a per-file line-count summary (total, covered, pct) for all files in the diff, ' +
         'plus rolled-up patch and project statistics.',
-      inputSchema: z.object({
-        cwd: z.string().describe('Absolute path to the repository root.'),
-        base: z
-          .string()
-          .optional()
-          .default('origin/main')
-          .describe('Git ref to diff against. Defaults to origin/main.'),
-      }),
-      outputSchema: z.object({
-        patch: z.object({
-          executable: z.number().int(),
-          covered: z.number().int(),
-          pct: z.number(),
-        }),
-        project: z.object({
-          executable: z.number().int(),
-          covered: z.number().int(),
-          pct: z.number(),
-        }),
-        files: z.array(
-          z.object({
-            path: z.string(),
-            lines: z.object({
-              total: z.number().int(),
-              covered: z.number().int(),
-              pct: z.number(),
-            }),
-          }),
-        ),
-      }),
+      inputSchema: {
+        cwd: cwdField,
+        base: baseField,
+      },
     },
     async ({ cwd, base }) => {
-      const result = await getSummary({ cwd, base: base ?? 'origin/main' });
+      const result = await getSummary({ cwd, base });
       return {
         content: [{ type: 'text', text: JSON.stringify(result) }],
-        structuredContent: result,
+        structuredContent: result as Record<string, unknown>,
       };
     },
   );

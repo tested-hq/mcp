@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * bin/tested-mcp.ts — Entry point for the tested-mcp stdio server.
  *
