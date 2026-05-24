@@ -4,7 +4,7 @@
   "description": "MCP server exposing tested coverage tools over stdio for Claude Code / Cursor / Claude API.",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@9.15.0",
+  "packageManager": "pnpm@11.3.0",
   "bin": {
     "tested-mcp": "./dist/tested-mcp.js"
   },
@@ -24,14 +24,15 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",
-    "zod": "^4.4.3"
+    "zod": "4.4.3"
   },
   "devDependencies": {
-    "@types/node": "22.10.2",
-    "@vitest/coverage-v8": "2.1.8",
-    "tsup": "8.3.5",
-    "tsx": "4.19.2",
-    "typescript": "5.7.2",
-    "vitest": "2.1.8"
+    "@types/node": "25.9.1",
+    "@vitest/coverage-v8": "4.1.7",
+    "tsup": "8.5.1",
+    "tsx": "4.22.3",
+    "typescript": "6.0.3",
+    "vite": "8.0.14",
+    "vitest": "4.1.7"
   }
 }
