@@ -9,6 +9,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { validateCwd } from './validate-cwd.js';
+import { truncate } from './tool-error.js';
 
 /**
  * Resolve the path to the `tested` CLI binary.
@@ -91,7 +92,7 @@ export async function runCli<T = unknown>(
       if (code !== 0) {
         reject(
           new Error(
-            `tested exited with code ${code}.\nstderr: ${stderr}\nstdout: ${stdout}`,
+            `tested exited with code ${code}.\nstderr: ${truncate(stderr)}\nstdout: ${truncate(stdout)}`,
           ),
         );
         return;
@@ -102,7 +103,7 @@ export async function runCli<T = unknown>(
       } catch {
         reject(
           new Error(
-            `tested output is not valid JSON.\nstdout: ${stdout}`,
+            `tested output is not valid JSON.\nstdout: ${truncate(stdout)}`,
           ),
         );
       }

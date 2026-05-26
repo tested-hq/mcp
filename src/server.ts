@@ -31,6 +31,7 @@ import {
   GetSummaryOutput,
   GetUncoveredDiffOutput,
 } from './schemas.js';
+import { toErrorResult } from './tool-error.js';
 
 // ── Shared raw shapes ──────────────────────────────────────────────────────
 
@@ -70,11 +71,15 @@ export function createServer(): McpServer {
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ cwd, base }) => {
-      const result = await getUncoveredDiff({ cwd, base });
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result) }],
-        structuredContent: result as Record<string, unknown>,
-      };
+      try {
+        const result = await getUncoveredDiff({ cwd, base });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent: result as Record<string, unknown>,
+        };
+      } catch (err) {
+        return toErrorResult(err);
+      }
     },
   );
 
@@ -96,11 +101,15 @@ export function createServer(): McpServer {
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ cwd, location }) => {
-      const result = await explain({ cwd, location });
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result) }],
-        structuredContent: result as Record<string, unknown>,
-      };
+      try {
+        const result = await explain({ cwd, location });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent: result as Record<string, unknown>,
+        };
+      } catch (err) {
+        return toErrorResult(err);
+      }
     },
   );
 
@@ -120,11 +129,15 @@ export function createServer(): McpServer {
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ cwd, base }) => {
-      const result = await getSummary({ cwd, base });
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result) }],
-        structuredContent: result as Record<string, unknown>,
-      };
+      try {
+        const result = await getSummary({ cwd, base });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent: result as Record<string, unknown>,
+        };
+      } catch (err) {
+        return toErrorResult(err);
+      }
     },
   );
 

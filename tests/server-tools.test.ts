@@ -41,6 +41,11 @@ afterAll(async () => {
   await client.close();
 });
 
+interface CallResult {
+  isError?: boolean;
+  content?: Array<{ type: string; text?: string }>;
+}
+
 describe('tools/list shape', () => {
   it('exposes exactly three tools with snake_case names', () => {
     const names = tools.map((t) => t.name).sort();
@@ -66,5 +71,38 @@ describe('tools/list shape', () => {
       expect(tool.annotations?.idempotentHint).toBe(true);
       expect(tool.annotations?.openWorldHint).toBe(false);
     }
+  });
+});
+
+describe('tool execution error handling', () => {
+  it('get_uncovered_diff returns isError:true on a bad cwd, not a protocol error', async () => {
+    const raw = await client.callTool({
+      name: 'get_uncovered_diff',
+      arguments: { cwd: '/no/such/dir-xyzzy', base: 'HEAD' },
+    });
+    const result = raw as unknown as CallResult;
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.type).toBe('text');
+    expect(result.content?.[0]?.text).toMatch(/does not exist/);
+  });
+
+  it('explain_line returns isError:true on a bad cwd', async () => {
+    const raw = await client.callTool({
+      name: 'explain_line',
+      arguments: { cwd: 'relative-not-absolute', location: 'foo.ts:1' },
+    });
+    const result = raw as unknown as CallResult;
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toMatch(/absolute/);
+  });
+
+  it('get_coverage_summary returns isError:true on a bad cwd', async () => {
+    const raw = await client.callTool({
+      name: 'get_coverage_summary',
+      arguments: { cwd: '/no/such/dir-xyzzy', base: 'HEAD' },
+    });
+    const result = raw as unknown as CallResult;
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toMatch(/does not exist/);
   });
 });
