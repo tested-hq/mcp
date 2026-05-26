@@ -13,6 +13,12 @@
  * inputSchema is passed as a raw Zod shape (Record<string, ZodTypeAny>) so the
  * SDK can infer argument types in the callback via ShapeOutput<Args>. Passing a
  * z.object() wrapper instead would produce unknown callback args.
+ *
+ * outputSchema is similarly a raw shape (from `.shape` on the zod object).
+ * Clients use it to validate structuredContent.
+ *
+ * annotations advertise tool behavior to clients so safer auto-approve UX
+ * is possible. All three tools are read-only file-system inspectors.
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -20,6 +26,11 @@ import { z } from 'zod';
 import { explain } from './tools/explain.js';
 import { getUncoveredDiff } from './tools/get_uncovered_diff.js';
 import { getSummary } from './tools/get_summary.js';
+import {
+  ExplainOutput,
+  GetSummaryOutput,
+  GetUncoveredDiffOutput,
+} from './schemas.js';
 
 // ── Shared raw shapes ──────────────────────────────────────────────────────
 
@@ -29,6 +40,13 @@ const baseField = z
   .optional()
   .default('origin/main')
   .describe('Git ref to diff against. Defaults to origin/main.');
+
+const READ_ONLY_ANNOTATIONS = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+} as const;
 
 export function createServer(): McpServer {
   const server = new McpServer({
@@ -48,6 +66,8 @@ export function createServer(): McpServer {
         cwd: cwdField,
         base: baseField,
       },
+      outputSchema: GetUncoveredDiffOutput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ cwd, base }) => {
       const result = await getUncoveredDiff({ cwd, base });
@@ -72,6 +92,8 @@ export function createServer(): McpServer {
           .string()
           .describe('File and line in the form "path/to/file.ts:42".'),
       },
+      outputSchema: ExplainOutput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ cwd, location }) => {
       const result = await explain({ cwd, location });
@@ -94,6 +116,8 @@ export function createServer(): McpServer {
         cwd: cwdField,
         base: baseField,
       },
+      outputSchema: GetSummaryOutput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ cwd, base }) => {
       const result = await getSummary({ cwd, base });
