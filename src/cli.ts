@@ -8,6 +8,7 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { validateCwd } from './validate-cwd.js';
 
 /**
  * Resolve the path to the `tested` CLI binary.
@@ -66,6 +67,7 @@ export async function runCli<T = unknown>(
   args: string[],
   opts: CliOptions,
 ): Promise<T> {
+  await validateCwd(opts.cwd);
   return new Promise<T>((resolve, reject) => {
     const child = spawn('node', [TESTED_BIN, ...args], {
       cwd: opts.cwd,
