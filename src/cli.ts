@@ -6,10 +6,33 @@
  * CLI warnings surface to the MCP host.
  */
 
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { validateCwd } from './validate-cwd.js';
 import { truncate } from './tool-error.js';
+
+// ── In-flight subprocess tracking (for graceful shutdown) ───────────────────
+
+const inFlight = new Set<ChildProcess>();
+
+export function trackChild(c: ChildProcess): void {
+  inFlight.add(c);
+  c.once('exit', () => inFlight.delete(c));
+}
+
+export function killAllChildren(signal: NodeJS.Signals = 'SIGTERM'): void {
+  for (const c of inFlight) {
+    try {
+      c.kill(signal);
+    } catch {
+      // best effort
+    }
+  }
+}
+
+export function inFlightCount(): number {
+  return inFlight.size;
+}
 
 /**
  * Resolve the path to the `tested` CLI binary.
@@ -74,6 +97,7 @@ export async function runCli<T = unknown>(
       cwd: opts.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    trackChild(child);
 
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
