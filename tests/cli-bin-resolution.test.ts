@@ -24,23 +24,22 @@ describe('TESTED_BIN resolution', () => {
     expect(src).not.toMatch(/['"`]\/home\/[a-zA-Z0-9_-]+\//);
   });
 
-  // The next two tests dynamically import the resolver, which throws in
-  // standalone CI without the sibling cli/ checkout. skipIf keeps single-package
-  // CI green; the full-tree CI (or any dev tree with cli built) still asserts.
-  it.skipIf(!CLI_AVAILABLE && !process.env['TESTED_BIN'])(
-    'resolves to a path ending in tested.js when resolvable',
-    async () => {
-      const mod = await import('../src/cli.js');
-      expect(mod.TESTED_BIN).toMatch(/tested\.js$/);
-    },
-  );
+  // The shape assertion runs unconditionally — tests/setup.ts always sets
+  // TESTED_BIN to either the real sibling binary or a placeholder path, so
+  // the resolver never throws during test collection.
+  it('resolves to a path ending in tested.js', async () => {
+    const mod = await import('../src/cli.js');
+    expect(mod.TESTED_BIN).toMatch(/tested\.js$/);
+  });
 
-  it.skipIf(!CLI_AVAILABLE && !process.env['TESTED_BIN'])(
-    'points to a file that exists on disk when resolvable',
-    async () => {
-      const { access } = await import('node:fs/promises');
-      const mod = await import('../src/cli.js');
-      await expect(access(mod.TESTED_BIN)).resolves.toBeUndefined();
-    },
-  );
+  // The on-disk existence check only makes sense when the resolver returned
+  // a real path (sibling cli built, or @tested/cli installed, or TESTED_BIN
+  // explicitly pointed at a real file). Single-package CI has none of those,
+  // so skip — the source-pattern check above already proves the original
+  // hardcoded /Users/jorgemodesto path bug is fixed.
+  it.skipIf(!CLI_AVAILABLE)('points to a file that exists on disk when resolvable', async () => {
+    const { access } = await import('node:fs/promises');
+    const mod = await import('../src/cli.js');
+    await expect(access(mod.TESTED_BIN)).resolves.toBeUndefined();
+  });
 });
