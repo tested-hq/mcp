@@ -59,13 +59,14 @@ afterAll(async () => {
 }, 10_000);
 
 describe.skipIf(!CLI_AVAILABLE)('stdio integration', () => {
-  it('lists exactly 3 tools', async () => {
+  it('lists exactly 4 tools', async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
-    expect(names).toHaveLength(3);
+    expect(names).toHaveLength(4);
     expect(names).toContain('get_uncovered_diff');
     expect(names).toContain('explain_line');
     expect(names).toContain('get_coverage_summary');
+    expect(names).toContain('write_and_verify');
     console.log('Tool list:', names);
   });
 
