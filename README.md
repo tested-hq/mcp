@@ -37,7 +37,7 @@ Add to your project's `.mcp.json` (or global `~/.claude/mcp.json`):
 }
 ```
 
-> **Tip:** If `TESTED_BIN` is not set, it defaults to `/Users/jorgemodesto/projects/tested/tested-hq/cli/dist/tested.js`. Override this env var to point to your built CLI binary.
+> **Tip:** If `TESTED_BIN` is not set, the server resolves the binary via `require.resolve('@tested/cli/dist/tested.js')` (when installed as a dep) or falls back to `which tested` on PATH. Set this env var only to override that lookup.
 
 ## Tools
 
@@ -131,7 +131,7 @@ Returns a per-file line-count summary plus rolled-up patch and project statistic
 
 | Variable    | Default                                                                              | Description               |
 |-------------|--------------------------------------------------------------------------------------|---------------------------|
-| `TESTED_BIN`| `/Users/jorgemodesto/projects/tested/tested-hq/cli/dist/tested.js`                  | Path to the tested binary |
+| `TESTED_BIN`| auto-resolved from `@tested/cli` package or `which tested`                          | Path to the tested binary |
 
 ## Development
 
