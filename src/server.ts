@@ -2,11 +2,13 @@
  * server.ts — MCP server setup and tool registration.
  *
  * Three tools are exposed:
- *   coverage.get_uncovered_diff — uncovered line ranges in the current diff
- *   coverage.explain            — coverage status for a specific line
- *   coverage.get_summary        — per-file line-count summary for the diff
+ *   get_uncovered_diff    — uncovered line ranges in the current diff
+ *   explain_line          — coverage status for a specific line
+ *   get_coverage_summary  — per-file line-count summary for the diff
  *
- * Tool names use dot notation; the SDK accepts arbitrary strings as tool names.
+ * Tool names use snake_case (no dots). Most MCP clients (Claude Code, Cursor)
+ * flatten tool names to `mcp__<server>__<tool>`; dotted names break that
+ * flattening. Reference servers (filesystem, github) all use snake_case.
  *
  * inputSchema is passed as a raw Zod shape (Record<string, ZodTypeAny>) so the
  * SDK can infer argument types in the callback via ShapeOutput<Args>. Passing a
@@ -34,9 +36,9 @@ export function createServer(): McpServer {
     version: '0.0.1',
   });
 
-  // ── coverage.get_uncovered_diff ──────────────────────────────────────────
+  // ── get_uncovered_diff ───────────────────────────────────────────────────
   server.registerTool(
-    'coverage.get_uncovered_diff',
+    'get_uncovered_diff',
     {
       title: 'Get uncovered diff',
       description:
@@ -56,9 +58,9 @@ export function createServer(): McpServer {
     },
   );
 
-  // ── coverage.explain ─────────────────────────────────────────────────────
+  // ── explain_line ─────────────────────────────────────────────────────────
   server.registerTool(
-    'coverage.explain',
+    'explain_line',
     {
       title: 'Explain coverage for a line',
       description:
@@ -80,9 +82,9 @@ export function createServer(): McpServer {
     },
   );
 
-  // ── coverage.get_summary ─────────────────────────────────────────────────
+  // ── get_coverage_summary ─────────────────────────────────────────────────
   server.registerTool(
-    'coverage.get_summary',
+    'get_coverage_summary',
     {
       title: 'Get coverage summary',
       description:

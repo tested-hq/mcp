@@ -1,6 +1,6 @@
 /**
  * Integration test: spawn the built tested-mcp binary over stdio, perform a
- * real JSON-RPC handshake, list tools, and call coverage.get_summary against
+ * real JSON-RPC handshake, list tools, and call get_coverage_summary against
  * the CLI's own repository.
  *
  * Prerequisites:
@@ -63,15 +63,15 @@ describe.skipIf(!CLI_AVAILABLE)('stdio integration', () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toHaveLength(3);
-    expect(names).toContain('coverage.get_uncovered_diff');
-    expect(names).toContain('coverage.explain');
-    expect(names).toContain('coverage.get_summary');
+    expect(names).toContain('get_uncovered_diff');
+    expect(names).toContain('explain_line');
+    expect(names).toContain('get_coverage_summary');
     console.log('Tool list:', names);
   });
 
-  it('coverage.get_summary returns valid shape against CLI repo', async () => {
+  it('get_coverage_summary returns valid shape against CLI repo', async () => {
     const raw = await client.callTool({
-      name: 'coverage.get_summary',
+      name: 'get_coverage_summary',
       arguments: {
         cwd: CLI_REPO,
         base: 'HEAD',
@@ -120,9 +120,9 @@ describe.skipIf(!CLI_AVAILABLE)('stdio integration', () => {
     }
   }, 30_000);
 
-  it('coverage.get_uncovered_diff returns valid shape against CLI repo', async () => {
+  it('get_uncovered_diff returns valid shape against CLI repo', async () => {
     const raw = await client.callTool({
-      name: 'coverage.get_uncovered_diff',
+      name: 'get_uncovered_diff',
       arguments: {
         cwd: CLI_REPO,
         base: 'HEAD',
@@ -147,9 +147,9 @@ describe.skipIf(!CLI_AVAILABLE)('stdio integration', () => {
     console.log('get_uncovered_diff files with ranges:', payload.files.length);
   }, 30_000);
 
-  it('coverage.explain returns valid shape for a CLI source file', async () => {
+  it('explain_line returns valid shape for a CLI source file', async () => {
     const raw = await client.callTool({
-      name: 'coverage.explain',
+      name: 'explain_line',
       arguments: {
         cwd: CLI_REPO,
         location: 'src/cli.ts:1',

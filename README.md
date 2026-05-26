@@ -43,7 +43,7 @@ Add to your project's `.mcp.json` (or global `~/.claude/mcp.json`):
 
 All tools require `cwd` — the absolute path to the repository root you want to inspect.
 
-### `coverage.get_uncovered_diff`
+### `get_uncovered_diff`
 
 Returns uncovered line/branch/function ranges for every file touched in the current diff.
 
@@ -74,7 +74,7 @@ Only files with at least one uncovered range are included.
 
 ---
 
-### `coverage.explain`
+### `explain_line`
 
 Returns whether a specific line is covered and why, plus a code excerpt.
 
@@ -99,7 +99,7 @@ Returns whether a specific line is covered and why, plus a code excerpt.
 
 ---
 
-### `coverage.get_summary`
+### `get_coverage_summary`
 
 Returns a per-file line-count summary plus rolled-up patch and project statistics.
 

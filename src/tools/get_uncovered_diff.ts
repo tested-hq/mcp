@@ -20,7 +20,7 @@ export async function getUncoveredDiff(
   const payload = JSON.stringify(result);
   if (payload.length > PAYLOAD_SOFT_CAP) {
     process.stderr.write(
-      `[tested-mcp] coverage.get_uncovered_diff response is ${payload.length} bytes (>${PAYLOAD_SOFT_CAP} soft cap).\n`,
+      `[tested-mcp] get_uncovered_diff response is ${payload.length} bytes (>${PAYLOAD_SOFT_CAP} soft cap).\n`,
     );
   }
 

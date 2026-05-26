@@ -18,7 +18,7 @@ export async function getSummary(input: GetSummaryInput): Promise<GetSummaryOutp
   const payload = JSON.stringify(result);
   if (payload.length > PAYLOAD_SOFT_CAP) {
     process.stderr.write(
-      `[tested-mcp] coverage.get_summary response is ${payload.length} bytes (>${PAYLOAD_SOFT_CAP} soft cap).\n`,
+      `[tested-mcp] get_coverage_summary response is ${payload.length} bytes (>${PAYLOAD_SOFT_CAP} soft cap).\n`,
     );
   }
 
