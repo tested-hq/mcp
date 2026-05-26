@@ -71,7 +71,7 @@ export function createServer(): McpServer {
       title: 'Get uncovered diff',
       description:
         'Returns the uncovered line/branch/function ranges for every file in the current diff. ' +
-        'Use this to understand which code added in the current branch lacks test coverage.',
+        'Call ONCE at the start to see what is uncovered, and at most ONCE after write_and_verify to confirm closure.',
       inputSchema: {
         cwd: cwdField,
         base: baseField,
@@ -99,6 +99,7 @@ export function createServer(): McpServer {
       title: 'Explain coverage for a line',
       description:
         'Returns whether a specific line is covered and why, plus a code excerpt. ' +
+        'Use ONLY when you need source context AND coverage state together for one specific line. ' +
         'Provide the location as "relative/path/to/file.ts:42".',
       inputSchema: {
         cwd: cwdField,
@@ -129,7 +130,8 @@ export function createServer(): McpServer {
       title: 'Get coverage summary',
       description:
         'Returns a per-file line-count summary (total, covered, pct) for all files in the diff, ' +
-        'plus rolled-up patch and project statistics.',
+        'plus rolled-up patch and project statistics. ' +
+        'Use ONLY when you need rolled-up totals; for per-line gap analysis prefer get_uncovered_diff.',
       inputSchema: {
         cwd: cwdField,
         base: baseField,
