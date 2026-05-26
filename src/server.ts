@@ -26,10 +26,12 @@ import { z } from 'zod';
 import { explain } from './tools/explain.js';
 import { getUncoveredDiff } from './tools/get_uncovered_diff.js';
 import { getSummary } from './tools/get_summary.js';
+import { writeAndVerify } from './tools/write_and_verify.js';
 import {
   ExplainOutput,
   GetSummaryOutput,
   GetUncoveredDiffOutput,
+  WriteAndVerifyOutput,
 } from './schemas.js';
 import { toErrorResult } from './tool-error.js';
 
@@ -46,6 +48,13 @@ const READ_ONLY_ANNOTATIONS = {
   readOnlyHint: true,
   destructiveHint: false,
   idempotentHint: true,
+  openWorldHint: false,
+} as const;
+
+const WRITE_ANNOTATIONS = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: false,
   openWorldHint: false,
 } as const;
 
@@ -131,6 +140,38 @@ export function createServer(): McpServer {
     async ({ cwd, base }) => {
       try {
         const result = await getSummary({ cwd, base });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent: result as Record<string, unknown>,
+        };
+      } catch (err) {
+        return toErrorResult(err);
+      }
+    },
+  );
+
+  // ── write_and_verify ─────────────────────────────────────────────────────
+  server.registerTool(
+    'write_and_verify',
+    {
+      title: 'Write a test file and re-verify coverage',
+      description:
+        'Write the test file AND re-run coverage in one call. Returns success+diff on pass, ' +
+        'or vitestStderr on failure. ALWAYS prefer this over a separate write + get_uncovered_diff sequence.',
+      inputSchema: {
+        cwd: cwdField,
+        base: baseField,
+        path: z
+          .string()
+          .describe('Path to the test file, relative to cwd, e.g. "tests/foo.test.ts".'),
+        content: z.string().describe('Complete contents of the test file (overwrites existing).'),
+      },
+      outputSchema: WriteAndVerifyOutput.shape,
+      annotations: WRITE_ANNOTATIONS,
+    },
+    async ({ cwd, base, path, content }) => {
+      try {
+        const result = await writeAndVerify({ cwd, base, path, content });
         return {
           content: [{ type: 'text', text: JSON.stringify(result) }],
           structuredContent: result as Record<string, unknown>,

@@ -127,6 +127,49 @@ Returns a per-file line-count summary plus rolled-up patch and project statistic
 
 > **Note on line counts:** The CLI reports per-file coverage as a percentage. `total` and `covered` are back-calculated from the uncovered ranges and that percentage; they are approximations, not exact source line counts.
 
+---
+
+### `write_and_verify`
+
+Writes a test file then re-runs the suite with coverage and returns the fresh uncovered-range snapshot, all in one call. This is the preferred tool when an agent is iterating on a test — it cuts the write→re-check roundtrip in half versus a separate write + `get_uncovered_diff` sequence.
+
+On runner failure, returns `success: false` with the captured `vitestStderr` so the agent can self-correct in the next turn without an additional tool call.
+
+**Input**
+
+| Field     | Type     | Default        | Description                                              |
+|-----------|----------|----------------|----------------------------------------------------------|
+| `cwd`     | `string` | required       | Absolute path to the repository root                     |
+| `base`    | `string` | `origin/main`  | Git ref to diff against (for the post-write diff)        |
+| `path`    | `string` | required       | Test file path, relative to `cwd`                        |
+| `content` | `string` | required       | Complete contents of the test file (overwrites existing) |
+
+**Output (success)**
+
+```json
+{
+  "bytesWritten": 1234,
+  "success": true,
+  "vitestStderr": null,
+  "diff": { "files": [] }
+}
+```
+
+**Output (failure)**
+
+```json
+{
+  "bytesWritten": 1234,
+  "success": false,
+  "vitestStderr": "AssertionError: expected 1 to equal 2\n…",
+  "vitestStdout": "FAIL tests/foo.test.ts > foo()\n…"
+}
+```
+
+> **Annotations:** `write_and_verify` advertises `destructiveHint: true` and `readOnlyHint: false`. Clients that surface a confirmation UX for destructive tools will prompt before invoking.
+
+> **Runner:** Currently spawns `npx vitest run --coverage --coverage.reporter=json`. Jest/pytest support arrives once the production CLI exposes the runner-config plumbing.
+
 ## Environment Variables
 
 | Variable    | Default                                                                              | Description               |

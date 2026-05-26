@@ -46,13 +46,20 @@ interface CallResult {
   content?: Array<{ type: string; text?: string }>;
 }
 
+const READ_ONLY_TOOLS = new Set([
+  'explain_line',
+  'get_coverage_summary',
+  'get_uncovered_diff',
+]);
+
 describe('tools/list shape', () => {
-  it('exposes exactly three tools with snake_case names', () => {
+  it('exposes exactly four tools with snake_case names', () => {
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
       'explain_line',
       'get_coverage_summary',
       'get_uncovered_diff',
+      'write_and_verify',
     ]);
   });
 
@@ -63,14 +70,24 @@ describe('tools/list shape', () => {
     }
   });
 
-  it('every tool has read-only annotations', () => {
+  it('read-only tools advertise read-only annotations', () => {
     for (const tool of tools) {
+      if (!READ_ONLY_TOOLS.has(tool.name)) continue;
       expect(tool.annotations, `${tool.name} missing annotations`).toBeDefined();
       expect(tool.annotations?.readOnlyHint).toBe(true);
       expect(tool.annotations?.destructiveHint).toBe(false);
       expect(tool.annotations?.idempotentHint).toBe(true);
       expect(tool.annotations?.openWorldHint).toBe(false);
     }
+  });
+
+  it('write_and_verify advertises destructive write annotations', () => {
+    const tool = tools.find((t) => t.name === 'write_and_verify');
+    expect(tool, 'write_and_verify not registered').toBeDefined();
+    expect(tool?.annotations?.readOnlyHint).toBe(false);
+    expect(tool?.annotations?.destructiveHint).toBe(true);
+    expect(tool?.annotations?.idempotentHint).toBe(false);
+    expect(tool?.annotations?.openWorldHint).toBe(false);
   });
 });
 

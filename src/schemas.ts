@@ -29,6 +29,14 @@ export type ExplainInput = z.infer<typeof ExplainInput>;
 export const GetSummaryInput = BaseInput;
 export type GetSummaryInput = z.infer<typeof GetSummaryInput>;
 
+export const WriteAndVerifyInput = BaseInput.extend({
+  path: z
+    .string()
+    .describe('Path to the test file, relative to cwd, e.g. "tests/foo.test.ts".'),
+  content: z.string().describe('Complete contents of the test file (overwrites existing).'),
+});
+export type WriteAndVerifyInput = z.infer<typeof WriteAndVerifyInput>;
+
 // ─── CLI raw output schema (v1) ────────────────────────────────────────────
 
 export const CliRangeSchema = z.object({
@@ -124,3 +132,15 @@ export const GetSummaryOutput = z.object({
   files: z.array(SummaryFileSchema),
 });
 export type GetSummaryOutput = z.infer<typeof GetSummaryOutput>;
+
+export const WriteAndVerifyOutput = z.object({
+  bytesWritten: z.number().int(),
+  success: z.boolean(),
+  /** Vitest stderr captured when the test run failed. null on success. */
+  vitestStderr: z.string().nullable(),
+  /** Vitest stdout captured when the test run failed. Omitted on success. */
+  vitestStdout: z.string().optional(),
+  /** Coverage diff snapshot after the rerun. Omitted on test-runner failure. */
+  diff: GetUncoveredDiffOutput.optional(),
+});
+export type WriteAndVerifyOutput = z.infer<typeof WriteAndVerifyOutput>;
