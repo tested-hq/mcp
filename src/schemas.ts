@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SAFE_GIT_REF_RE } from './git-ref.js';
 
 // ─── Shared input fields ───────────────────────────────────────────────────
 
@@ -6,10 +7,21 @@ export const CwdInput = z.object({
   cwd: z.string().describe('Absolute path to the repository root.'),
 });
 
+/** Git ref constrained to a safe charset (no leading `-`, max 256). */
+export const SafeGitRef = z
+  .string()
+  .min(1)
+  .max(256)
+  .regex(SAFE_GIT_REF_RE, {
+    message:
+      'base must be a safe git ref ([A-Za-z0-9_./@~^-], max 256, no leading -)',
+  })
+  .refine((v) => !v.startsWith('-'), {
+    message: 'base must not start with -',
+  });
+
 export const BaseInput = CwdInput.extend({
-  base: z
-    .string()
-    .optional()
+  base: SafeGitRef.optional()
     .default('origin/main')
     .describe('Git ref to diff against (branch, tag, or SHA). Defaults to origin/main.'),
 });
@@ -99,6 +111,8 @@ export const UncoveredDiffFileSchema = z.object({
 
 export const GetUncoveredDiffOutput = z.object({
   files: z.array(UncoveredDiffFileSchema),
+  /** Present when files[] was hard-truncated for payload size / count. */
+  truncated: z.boolean().optional(),
 });
 export type GetUncoveredDiffOutput = z.infer<typeof GetUncoveredDiffOutput>;
 
@@ -130,6 +144,8 @@ export const GetSummaryOutput = z.object({
   patch: CoverageStatsSchema,
   project: CoverageStatsSchema,
   files: z.array(SummaryFileSchema),
+  /** Present when files[] was hard-truncated for payload size / count. */
+  truncated: z.boolean().optional(),
 });
 export type GetSummaryOutput = z.infer<typeof GetSummaryOutput>;
 

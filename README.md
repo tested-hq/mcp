@@ -1,6 +1,29 @@
 # @tested/mcp
 
-MCP server that wraps the `@tested/cli` binary and exposes three coverage tools over stdio for use with Claude Code, Cursor, or any MCP-compatible client.
+MCP server that wraps the `@tested/cli` binary and exposes coverage tools over stdio for use with Claude Code, Cursor, or any MCP-compatible client.
+
+## Security (read first)
+
+> **Only pass trusted repository paths as `cwd`.** Tools spawn the project’s
+> test runner (`npx vitest` / etc.) and can write test files via
+> `write_and_verify`. An untrusted repo is arbitrary code execution.
+
+**Strongly recommended for always-on / multi-tenant MCP hosts:**
+
+```bash
+export TESTED_ALLOWED_CWDS="/abs/path/to/project1:/abs/path/to/project2"
+```
+
+When set, every tool rejects a `cwd` that is not exactly one of those paths.
+
+Also recommended:
+
+| Variable | Purpose |
+|----------|---------|
+| `TESTED_BIN` | Absolute path to `dist/tested.js` (admin-controlled) |
+| `TESTED_BIN_ALLOW_PREFIX` | Colon-separated realpath prefixes; when set, `TESTED_BIN` realpath must stay under one, and basename must be `tested` or `tested.js` |
+
+Writes refuse intermediate symlink escapes (realpath + lstat walk). Read tools hard-truncate large `files[]` payloads (`truncated: true`, max ~200 files / 64 KiB).
 
 ## Requirements
 
@@ -30,14 +53,16 @@ Add to your project's `.mcp.json` (or global `~/.claude/mcp.json`):
       "command": "node",
       "args": ["/absolute/path/to/tested-hq/mcp/dist/tested-mcp.js"],
       "env": {
-        "TESTED_BIN": "/absolute/path/to/tested-hq/cli/dist/tested.js"
+        "TESTED_BIN": "/absolute/path/to/tested-hq/cli/dist/tested.js",
+        "TESTED_BIN_ALLOW_PREFIX": "/absolute/path/to/tested-hq/cli/dist",
+        "TESTED_ALLOWED_CWDS": "/absolute/path/to/your-project"
       }
     }
   }
 }
 ```
 
-> **Tip:** If `TESTED_BIN` is not set, the server resolves the binary via `require.resolve('@tested/cli/dist/tested.js')` (when installed as a dep) or falls back to `which tested` on PATH. Set this env var only to override that lookup.
+> **Tip:** If `TESTED_BIN` is not set, the server resolves the binary via `require.resolve('@tested/cli/dist/tested.js')` (when installed as a dep) or falls back to `which tested` on PATH. Set this env var only to override that lookup. Prefer an absolute admin-controlled path and `TESTED_BIN_ALLOW_PREFIX` in production hosts.
 
 ## Tools
 
@@ -172,9 +197,11 @@ On runner failure, returns `success: false` with the captured `vitestStderr` so 
 
 ## Environment Variables
 
-| Variable    | Default                                                                              | Description               |
-|-------------|--------------------------------------------------------------------------------------|---------------------------|
-| `TESTED_BIN`| auto-resolved from `@tested/cli` package or `which tested`                          | Path to the tested binary |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TESTED_BIN` | auto-resolved from `@tested/cli` or `which tested` | Absolute path to the tested CLI binary |
+| `TESTED_BIN_ALLOW_PREFIX` | unset | Colon-separated realpath prefixes; when set, enforce basename `tested`/`tested.js` and prefix membership |
+| `TESTED_ALLOWED_CWDS` | unset | Colon-separated absolute cwd allowlist (recommended for always-on hosts) |
 
 ## Development
 

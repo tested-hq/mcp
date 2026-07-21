@@ -40,6 +40,12 @@ import { toErrorResult } from './tool-error.js';
 const cwdField = z.string().describe('Absolute path to the repository root.');
 const baseField = z
   .string()
+  .min(1)
+  .max(256)
+  .regex(/^[A-Za-z0-9_./@~^-]{1,256}$/, {
+    message: 'base must be a safe git ref charset',
+  })
+  .refine((v) => !v.startsWith('-'), { message: 'base must not start with -' })
   .optional()
   .default('origin/main')
   .describe('Git ref to diff against. Defaults to origin/main.');

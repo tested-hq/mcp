@@ -96,6 +96,27 @@ describe('writeAndVerify', () => {
     ).rejects.toThrow(/outside/);
   });
 
+  it('rejects intermediate symlink that points outside the tree', async () => {
+    runTestsMock.mockResolvedValue({ success: true, stdout: '', stderr: '' });
+    const { symlinkSync, mkdtempSync: mk } = await import('node:fs');
+    const { tmpdir: td } = await import('node:os');
+    const outside = mk(join(td(), 'mcp-wav-outside-'));
+    try {
+      symlinkSync(outside, join(tmpDir, 'tests'));
+    } catch {
+      return; // platform cannot create symlinks
+    }
+    await expect(
+      writeAndVerify({
+        cwd: tmpDir,
+        base: 'origin/main',
+        path: 'tests/evil.test.ts',
+        content: 'x',
+      }),
+    ).rejects.toThrow(/symlink|escapes/i);
+    expect(runTestsMock).not.toHaveBeenCalled();
+  });
+
   it('rejects cwd that is not a git repo before writing', async () => {
     runTestsMock.mockResolvedValue({ success: true, stdout: '', stderr: '' });
     const noGit = mkdtempSync(join(tmpdir(), 'mcp-no-git-'));

@@ -1,4 +1,9 @@
 import { runCli } from '../cli.js';
+import { assertSafeGitRef } from '../git-ref.js';
+import {
+  applyPayloadCap,
+  maybeWarnPayloadSize,
+} from '../payload-cap.js';
 import { toSummary } from '../reshape.js';
 import {
   CliDiffOutputSchema,
@@ -6,21 +11,16 @@ import {
   GetSummaryOutput,
 } from '../schemas.js';
 
-const PAYLOAD_SOFT_CAP = 32 * 1024; // 32 KB
-
 export async function getSummary(input: GetSummaryInput): Promise<GetSummaryOutput> {
   const { cwd, base } = input;
+  assertSafeGitRef(base);
 
   const raw = await runCli(['diff', '--base', base, '--json'], { cwd });
   const parsed = CliDiffOutputSchema.parse(raw);
-  const result = toSummary(parsed);
+  const result = applyPayloadCap(toSummary(parsed));
 
   const payload = JSON.stringify(result);
-  if (payload.length > PAYLOAD_SOFT_CAP) {
-    process.stderr.write(
-      `[tested-mcp] get_coverage_summary response is ${payload.length} bytes (>${PAYLOAD_SOFT_CAP} soft cap).\n`,
-    );
-  }
+  maybeWarnPayloadSize('get_coverage_summary', payload.length);
 
   return result;
 }
