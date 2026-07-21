@@ -7,8 +7,9 @@
  */
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { isAbsolute } from 'node:path';
+import { basename, isAbsolute, resolve, sep } from 'node:path';
 import { validateCwd } from './validate-cwd.js';
 import { truncate } from './tool-error.js';
 
@@ -48,12 +49,39 @@ export function inFlightCount(): number {
  * Throws a clear error with install instructions if none of the above
  * succeed.
  */
+
+/** Basename must look like the tested CLI when an override is used. */
+export const TESTED_BIN_BASENAME_RE = /^tested(\.js)?$/;
+
+export interface AssertSafeTestedBinOpts {
+  env?: NodeJS.ProcessEnv;
+  /** Warning sink (defaults to process.stderr.write). */
+  warn?: (msg: string) => void;
+}
+
 /**
  * Validate an explicit TESTED_BIN override.
+ *
  * Must be absolute (no PATH search / relative CWD tricks) and free of NULs.
- * Existence is checked at spawn time so test setups can inject placeholders.
+ * When `TESTED_BIN_ALLOW_PREFIX` is set (colon-separated realpath prefixes),
+ * the resolved realpath must start with one of those prefixes, and basename
+ * must match `/^tested(\.js)?$/` (hard-fail). Without the prefix policy,
+ * a non-matching basename only warns.
+ *
+ * Existence is required when the prefix policy is set; otherwise existence
+ * is checked at spawn time so test setups can inject placeholders.
  */
-export function assertSafeTestedBin(envBin: string): string {
+export function assertSafeTestedBin(
+  envBin: string,
+  opts: AssertSafeTestedBinOpts = {},
+): string {
+  const env = opts.env ?? process.env;
+  const warn =
+    opts.warn ??
+    ((msg: string) => {
+      process.stderr.write(msg);
+    });
+
   const trimmed = envBin.trim();
   if (!trimmed) {
     throw new Error('[tested-mcp] TESTED_BIN is empty');
@@ -66,6 +94,64 @@ export function assertSafeTestedBin(envBin: string): string {
       `[tested-mcp] TESTED_BIN must be an absolute path, got: ${trimmed}`,
     );
   }
+
+  const base = basename(trimmed);
+  const prefixRaw = env['TESTED_BIN_ALLOW_PREFIX'];
+  const prefixes = prefixRaw
+    ? prefixRaw
+        .split(':')
+        .map((p) => p.trim())
+        .filter(Boolean)
+    : [];
+  const hasPrefixPolicy = prefixes.length > 0;
+
+  if (!TESTED_BIN_BASENAME_RE.test(base)) {
+    if (hasPrefixPolicy) {
+      throw new Error(
+        `[tested-mcp] TESTED_BIN basename must match /^tested(\\.js)?$/ when ` +
+          `TESTED_BIN_ALLOW_PREFIX is set, got: ${base}`,
+      );
+    }
+    warn(
+      `[tested-mcp] warning: TESTED_BIN basename "${base}" does not match ` +
+        `tested or tested.js — prefer the official CLI binary\n`,
+    );
+  }
+
+  if (hasPrefixPolicy) {
+    let realBin: string;
+    try {
+      realBin = realpathSync(trimmed);
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      throw new Error(
+        `[tested-mcp] TESTED_BIN cannot be resolved (realpath failed` +
+          `${code ? `: ${code}` : ''}): ${trimmed}`,
+      );
+    }
+
+    const allowed = prefixes.some((prefix) => {
+      let realPrefix: string;
+      try {
+        realPrefix = realpathSync(prefix);
+      } catch {
+        // Fall back to absolute resolve if prefix path does not exist yet.
+        realPrefix = resolve(prefix);
+      }
+      return (
+        realBin === realPrefix ||
+        realBin.startsWith(realPrefix.endsWith(sep) ? realPrefix : realPrefix + sep)
+      );
+    });
+
+    if (!allowed) {
+      throw new Error(
+        `[tested-mcp] TESTED_BIN realpath "${realBin}" is not under any ` +
+          `TESTED_BIN_ALLOW_PREFIX entry`,
+      );
+    }
+  }
+
   return trimmed;
 }
 
@@ -127,7 +213,7 @@ export async function runCli<T = unknown>(
     }
   }
   const timeoutMs = opts.timeoutMs ?? DEFAULT_CLI_TIMEOUT_MS;
-  return new Promise<T>((resolve, reject) => {
+  return new Promise<T>((resolvePromise, reject) => {
     const child = spawn('node', [TESTED_BIN, ...args], {
       cwd: opts.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -196,7 +282,7 @@ export async function runCli<T = unknown>(
       }
 
       try {
-        resolve(JSON.parse(stdout) as T);
+        resolvePromise(JSON.parse(stdout) as T);
       } catch {
         reject(
           new Error(
