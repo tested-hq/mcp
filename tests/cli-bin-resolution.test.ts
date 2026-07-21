@@ -24,6 +24,14 @@ describe('TESTED_BIN resolution', () => {
     expect(src).not.toMatch(/['"`]\/home\/[a-zA-Z0-9_-]+\//);
   });
 
+  it('assertSafeTestedBin rejects relative and empty overrides', async () => {
+    const { assertSafeTestedBin } = await import('../src/cli.js');
+    expect(() => assertSafeTestedBin('relative/tested.js')).toThrow(/absolute/);
+    expect(() => assertSafeTestedBin('')).toThrow(/empty/);
+    expect(() => assertSafeTestedBin('/abs/tested.js\0')).toThrow(/null/);
+    expect(assertSafeTestedBin('/abs/path/tested.js')).toBe('/abs/path/tested.js');
+  });
+
   // The shape assertion runs unconditionally — tests/setup.ts always sets
   // TESTED_BIN to either the real sibling binary or a placeholder path, so
   // the resolver never throws during test collection.

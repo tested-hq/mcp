@@ -95,4 +95,35 @@ describe('writeAndVerify', () => {
       }),
     ).rejects.toThrow(/outside/);
   });
+
+  it('rejects cwd that is not a git repo before writing', async () => {
+    runTestsMock.mockResolvedValue({ success: true, stdout: '', stderr: '' });
+    const noGit = mkdtempSync(join(tmpdir(), 'mcp-no-git-'));
+    await expect(
+      writeAndVerify({
+        cwd: noGit,
+        base: 'origin/main',
+        path: 'evil.test.ts',
+        content: 'x',
+      }),
+    ).rejects.toThrow(/\.git/);
+    expect(runTestsMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects oversized content (DoS guard)', async () => {
+    runTestsMock.mockResolvedValue({ success: true, stdout: '', stderr: '' });
+    const { MAX_WRITE_CONTENT_BYTES } = await import(
+      '../../src/tools/write_and_verify.js'
+    );
+    const big = 'x'.repeat(MAX_WRITE_CONTENT_BYTES + 1);
+    await expect(
+      writeAndVerify({
+        cwd: tmpDir,
+        base: 'origin/main',
+        path: 'tests/big.test.ts',
+        content: big,
+      }),
+    ).rejects.toThrow(/byte limit/);
+    expect(runTestsMock).not.toHaveBeenCalled();
+  });
 });
