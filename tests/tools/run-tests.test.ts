@@ -40,8 +40,26 @@ describe('runTestsWithCoverage', () => {
     expect(spawn).toHaveBeenCalledWith(
       'npx',
       ['vitest', 'run', '--coverage', '--coverage.reporter=json'],
-      expect.objectContaining({ cwd: '/tmp' }),
+      expect.objectContaining({ cwd: '/tmp', env: expect.any(Object) }),
     );
+  });
+
+  it('does not forward TESTED_TOKEN to the test runner', async () => {
+    const prev = process.env['TESTED_TOKEN'];
+    process.env['TESTED_TOKEN'] = 'must-not-reach-vitest';
+    try {
+      const child = fakeChild();
+      spawn.mockReturnValue(child);
+      const pending = runTestsWithCoverage({ cwd: '/tmp' });
+      child.emit('close', 0);
+      await pending;
+      const spawnOpts = spawn.mock.calls[0]?.[2] as { env?: NodeJS.ProcessEnv };
+      expect(spawnOpts.env?.TESTED_TOKEN).toBeUndefined();
+      expect(spawnOpts.env?.PATH).toBeDefined();
+    } finally {
+      if (prev === undefined) delete process.env['TESTED_TOKEN'];
+      else process.env['TESTED_TOKEN'] = prev;
+    }
   });
 
   it('returns success:false when the runner exits non-zero', async () => {

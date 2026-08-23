@@ -48,6 +48,24 @@ describe('runCli', () => {
     await expect(pending).resolves.toEqual({ ok: 1 });
   });
 
+  it('does not forward TESTED_TOKEN to the CLI child', async () => {
+    const prev = process.env['TESTED_TOKEN'];
+    process.env['TESTED_TOKEN'] = 'must-not-reach-cli';
+    try {
+      const { child, pending } = await startRun();
+      child.stdout!.emit('data', Buffer.from('{"ok":1}\n'));
+      child.emit('close', 0);
+      await pending;
+      const spawnOpts = spawn.mock.calls[0]?.[2] as { env?: NodeJS.ProcessEnv };
+      expect(spawnOpts.env).toBeDefined();
+      expect(spawnOpts.env?.TESTED_TOKEN).toBeUndefined();
+      expect(spawnOpts.env?.PATH).toBeDefined();
+    } finally {
+      if (prev === undefined) delete process.env['TESTED_TOKEN'];
+      else process.env['TESTED_TOKEN'] = prev;
+    }
+  });
+
   it('rejects null-byte arguments before spawn', async () => {
     await expect(runCli(['foo\0bar'], { cwd: repo })).rejects.toThrow(/null/);
     expect(spawn).not.toHaveBeenCalled();

@@ -10,6 +10,7 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename, isAbsolute, resolve, sep } from 'node:path';
+import { sanitizeChildEnv } from './sanitize-env.js';
 import { validateCwd } from './validate-cwd.js';
 import { truncate } from './tool-error.js';
 
@@ -216,6 +217,7 @@ export async function runCli<T = unknown>(
   return new Promise<T>((resolvePromise, reject) => {
     const child = spawn('node', [TESTED_BIN, ...args], {
       cwd: opts.cwd,
+      env: sanitizeChildEnv(),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     trackChild(child);

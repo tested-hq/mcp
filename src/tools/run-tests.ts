@@ -15,10 +15,14 @@
  *
  * Resource limits: timeout + capped stdout/stderr buffers prevent a
  * runaway suite (or malicious fixture) from DoS-ing the MCP host.
+ *
+ * The runner inherits a sanitized copy of process.env (see sanitizeChildEnv)
+ * so agent-written tests cannot read TESTED_TOKEN from the MCP host.
  */
 
 import { spawn } from 'node:child_process';
 import { trackChild } from '../cli.js';
+import { sanitizeChildEnv } from '../sanitize-env.js';
 
 export interface RunTestsResult {
   success: boolean;
@@ -65,6 +69,7 @@ export async function runTestsWithCoverage(
   return new Promise<RunTestsResult>((resolve, reject) => {
     const child = spawn(DEFAULT_RUN_COMMAND, DEFAULT_RUN_ARGS, {
       cwd: opts.cwd,
+      env: sanitizeChildEnv(),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     trackChild(child);
