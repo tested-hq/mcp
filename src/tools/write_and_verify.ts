@@ -20,8 +20,8 @@
 
 import { writeFile } from 'node:fs/promises';
 import { runCli } from '../cli.js';
-import { assertSafeGitRef } from '../git-ref.js';
 import { applyPayloadCap } from '../payload-cap.js';
+import { resolveToolBase } from '../resolve-base.js';
 import { toUncoveredDiff } from '../reshape.js';
 import { assertSafeWritePath } from '../safe-path.js';
 import {
@@ -38,13 +38,16 @@ export const MAX_WRITE_CONTENT_BYTES = 1 * 1024 * 1024;
 export async function writeAndVerify(
   input: WriteAndVerifyInput,
 ): Promise<WriteAndVerifyOutput> {
-  const { cwd, base, path, content } = input;
+  const { cwd, path, content } = input;
 
   // 0. Validate cwd *before* writing or spawning — previously only runCli
   //    called validateCwd, so a non-repo / non-allowlisted cwd could still
   //    receive an arbitrary write + vitest spawn.
   await validateCwd(cwd);
-  assertSafeGitRef(base);
+  const base = resolveToolBase({
+    cwd,
+    ...(input.base !== undefined ? { base: input.base } : {}),
+  });
 
   // 1. Validate the write target stays inside cwd even through intermediate
   //    symlinks (realpath deepest ancestor + lstat walk).

@@ -1,5 +1,8 @@
 import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'node:child_process';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const spawn = vi.hoisted(() => vi.fn());
@@ -9,9 +12,8 @@ vi.mock('node:child_process', async (importOriginal) => {
   return { ...actual, spawn };
 });
 
-const { runTestsWithCoverage, MAX_CAPTURE_BYTES } = await import(
-  '../../src/tools/run-tests.js'
-);
+const { runTestsWithCoverage, resolveRunnerCommand, MAX_CAPTURE_BYTES } =
+  await import('../../src/tools/run-tests.js');
 
 function fakeChild(): ChildProcess {
   const child = new EventEmitter() as ChildProcess;
@@ -128,6 +130,41 @@ describe('runTestsWithCoverage', () => {
     const result = await pending;
     expect(result.stdout.startsWith('HEAD-TAIL')).toBe(true);
     expect(result.stdout.length).toBe(MAX_CAPTURE_BYTES);
+  });
+
+  it('honors testRunner from .tested.yaml', async () => {
+    const dir = join(tmpdir(), `mcp-runner-${Math.random().toString(16).slice(2)}`);
+    mkdirSync(dir);
+    writeFileSync(join(dir, '.tested.yaml'), 'testRunner: jest\n');
+    try {
+      const child = fakeChild();
+      spawn.mockReturnValue(child);
+      const pending = runTestsWithCoverage({ cwd: dir });
+      child.emit('close', 0);
+      await pending;
+      expect(spawn).toHaveBeenCalledWith(
+        'npx',
+        ['jest', '--coverage'],
+        expect.objectContaining({ cwd: dir }),
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('maps each known runner', () => {
+    expect(resolveRunnerCommand(null)).toEqual({
+      command: 'npx',
+      args: ['vitest', 'run', '--coverage', '--coverage.reporter=json'],
+    });
+    expect(resolveRunnerCommand('jest')).toEqual({
+      command: 'npx',
+      args: ['jest', '--coverage'],
+    });
+    expect(resolveRunnerCommand('pytest')).toEqual({
+      command: 'python',
+      args: ['-m', 'pytest', '--cov'],
+    });
   });
 
   it('rejects when the runner cannot be spawned', async () => {

@@ -11,11 +11,17 @@ const explain = vi.hoisted(() => vi.fn());
 const getUncoveredDiff = vi.hoisted(() => vi.fn());
 const getSummary = vi.hoisted(() => vi.fn());
 const writeAndVerify = vi.hoisted(() => vi.fn());
+const check = vi.hoisted(() => vi.fn());
+const push = vi.hoisted(() => vi.fn());
+const doctor = vi.hoisted(() => vi.fn());
 
 vi.mock('../src/tools/explain.js', () => ({ explain }));
 vi.mock('../src/tools/get_uncovered_diff.js', () => ({ getUncoveredDiff }));
 vi.mock('../src/tools/get_summary.js', () => ({ getSummary }));
 vi.mock('../src/tools/write_and_verify.js', () => ({ writeAndVerify }));
+vi.mock('../src/tools/check.js', () => ({ check }));
+vi.mock('../src/tools/push.js', () => ({ push }));
+vi.mock('../src/tools/doctor.js', () => ({ doctor }));
 
 const { createServer } = await import('../src/server.js');
 
@@ -141,5 +147,46 @@ describe('registered tool handlers', () => {
     const result = raw as unknown as CallResult;
     expect(result.isError).toBe(true);
     expect(result.content?.[0]?.text).toBe('raw-string-fail');
+  });
+
+  it('check returns structuredContent on success', async () => {
+    check.mockResolvedValueOnce({
+      patch: { pct: 90, threshold: 80, pass: true },
+      project: { pct: 92, threshold: 90, pass: true },
+      overall: 'pass',
+    });
+    const raw = await client.callTool({
+      name: 'check',
+      arguments: { cwd: '/repo', base: 'HEAD' },
+    });
+    const result = raw as unknown as CallResult;
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toMatchObject({ overall: 'pass' });
+  });
+
+  it('push returns isError:true when the tool throws', async () => {
+    push.mockRejectedValueOnce(new Error('push requires a token argument'));
+    const raw = await client.callTool({
+      name: 'push',
+      arguments: { cwd: '/repo', mainline: true },
+    });
+    const result = raw as unknown as CallResult;
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toMatch(/token/);
+  });
+
+  it('doctor returns structuredContent on success', async () => {
+    doctor.mockResolvedValueOnce({
+      schemaVersion: 1,
+      ok: true,
+      checks: [{ id: 'node', label: 'Node.js', status: 'pass', detail: 'v24' }],
+    });
+    const raw = await client.callTool({
+      name: 'doctor',
+      arguments: { cwd: '/repo' },
+    });
+    const result = raw as unknown as CallResult;
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toMatchObject({ ok: true });
   });
 });

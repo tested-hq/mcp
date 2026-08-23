@@ -2,11 +2,8 @@
  * run-tests.ts — Spawn the user's test runner with coverage enabled.
  *
  * write_and_verify needs the suite to actually execute (otherwise the
- * subsequent `tested diff --json` reads stale coverage). We default to
- * `npx vitest run --coverage --coverage.reporter=json` because that's the
- * runner the eval prototype validated and it matches the README install
- * instructions; jest/pytest are reachable through the same wiring once
- * the production CLI exposes the runner-config plumbing.
+ * subsequent `tested diff --json` reads stale coverage). Runner comes from
+ * `.tested.yaml` `testRunner` (vitest / jest / pytest). When unset, vitest.
  *
  * Returns the captured stdout/stderr + a success boolean instead of
  * throwing so the calling tool can return success:false to the model
@@ -23,6 +20,10 @@
 import { spawn } from 'node:child_process';
 import { trackChild } from '../cli.js';
 import { sanitizeChildEnv } from '../sanitize-env.js';
+import {
+  readTestedYamlFields,
+  type TestRunner,
+} from '../tested-config.js';
 
 export interface RunTestsResult {
   success: boolean;
@@ -36,13 +37,41 @@ export interface RunTestsOptions {
   timeoutMs?: number;
 }
 
-const DEFAULT_RUN_COMMAND = 'npx';
-const DEFAULT_RUN_ARGS = [
-  'vitest',
-  'run',
-  '--coverage',
-  '--coverage.reporter=json',
-];
+export interface ResolvedRunner {
+  command: string;
+  args: string[];
+}
+
+/**
+ * Thin spawn mapping for `.tested.yaml` `testRunner`.
+ * Jest/pytest get the CLI's command line only — no runner-specific
+ * coverage parsing beyond what that command already writes.
+ */
+export function resolveRunnerCommand(runner: TestRunner | null): ResolvedRunner {
+  const resolved: TestRunner = runner ?? 'vitest';
+  switch (resolved) {
+    case 'vitest':
+      return {
+        command: 'npx',
+        args: ['vitest', 'run', '--coverage', '--coverage.reporter=json'],
+      };
+    case 'jest':
+      return {
+        command: 'npx',
+        args: ['jest', '--coverage'],
+      };
+    case 'pytest':
+      return {
+        command: 'python',
+        args: ['-m', 'pytest', '--cov'],
+      };
+    default: {
+      const _exhaustive: never = resolved;
+      void _exhaustive;
+      throw new Error(`Unsupported testRunner: ${String(resolved)}`);
+    }
+  }
+}
 
 /** Default wall-clock budget for a single coverage run. */
 export const DEFAULT_TEST_TIMEOUT_MS = 5 * 60 * 1000;
@@ -66,8 +95,10 @@ export async function runTestsWithCoverage(
   opts: RunTestsOptions,
 ): Promise<RunTestsResult> {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TEST_TIMEOUT_MS;
+  const { testRunner } = readTestedYamlFields(opts.cwd);
+  const { command, args } = resolveRunnerCommand(testRunner);
   return new Promise<RunTestsResult>((resolve, reject) => {
-    const child = spawn(DEFAULT_RUN_COMMAND, DEFAULT_RUN_ARGS, {
+    const child = spawn(command, args, {
       cwd: opts.cwd,
       env: sanitizeChildEnv(),
       stdio: ['ignore', 'pipe', 'pipe'],

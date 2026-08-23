@@ -119,9 +119,7 @@ describe('TESTED_BIN resolution', () => {
     ).toBe(linkBin);
   });
 
-  // The shape assertion runs unconditionally — tests/setup.ts always sets
-  // TESTED_BIN to either the real sibling binary or a placeholder path, so
-  // the resolver never throws during test collection.
+  // Resolution is lazy; tests do not need a placeholder TESTED_BIN.
   it('rejects a whitespace-only override', async () => {
     const { assertSafeTestedBin } = await import('../src/cli.js');
     expect(() => assertSafeTestedBin('   ')).toThrow(/empty/);
@@ -200,7 +198,7 @@ describe('TESTED_BIN resolution', () => {
 
   it('resolves to a path ending in tested.js', async () => {
     const mod = await import('../src/cli.js');
-    expect(mod.TESTED_BIN).toMatch(/tested\.js$/);
+    expect(mod.getTestedBin()).toMatch(/tested(\.js)?$/);
   });
 
   // The on-disk existence check only makes sense when the resolver returned
@@ -211,6 +209,6 @@ describe('TESTED_BIN resolution', () => {
   it.skipIf(!CLI_AVAILABLE)('points to a file that exists on disk when resolvable', async () => {
     const { access } = await import('node:fs/promises');
     const mod = await import('../src/cli.js');
-    await expect(access(mod.TESTED_BIN)).resolves.toBeUndefined();
+    await expect(access(mod.getTestedBin())).resolves.toBeUndefined();
   });
 });

@@ -31,8 +31,10 @@ describe('validateCwd', () => {
     await expect(validateCwd(dir)).resolves.toBeUndefined();
   });
 
-  it('rejects a relative path', async () => {
-    await expect(validateCwd('relative/path')).rejects.toThrow(/absolute/);
+  it('rejects a relative path and names the absolute-git-repo rule', async () => {
+    await expect(validateCwd('relative/path')).rejects.toThrow(
+      /absolute path to a git repository root.*relative path/,
+    );
   });
 
   it('rejects a non-existent path', async () => {
@@ -41,10 +43,12 @@ describe('validateCwd', () => {
     );
   });
 
-  it('rejects a directory without .git/', async () => {
+  it('rejects a directory without .git/ and names the rule', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'no-git-'));
     cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
-    await expect(validateCwd(dir)).rejects.toThrow(/\.git/);
+    await expect(validateCwd(dir)).rejects.toThrow(
+      /absolute path to a git repository root.*no \.git\//,
+    );
   });
 
   it('rejects a path that is a file, not a directory', async () => {

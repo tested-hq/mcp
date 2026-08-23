@@ -9,9 +9,11 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createServer } from '../src/server.js';
+import { MCP_VERSION } from '../src/version.js';
 
 interface ListedTool {
   name: string;
+  description?: string;
   inputSchema?: Record<string, unknown>;
   outputSchema?: Record<string, unknown>;
   annotations?: {
@@ -41,24 +43,38 @@ afterAll(async () => {
   await client.close();
 });
 
+describe('serverInfo', () => {
+  it('reports the package version, not a hardcoded 0.0.1', async () => {
+    const info = client.getServerVersion();
+    expect(info?.version).toBe(MCP_VERSION);
+    expect(info?.version).not.toBe('0.0.1');
+    expect(info?.name).toBe('tested-mcp');
+  });
+});
+
 interface CallResult {
   isError?: boolean;
   content?: Array<{ type: string; text?: string }>;
 }
 
 const READ_ONLY_TOOLS = new Set([
+  'check',
+  'doctor',
   'explain_line',
   'get_coverage_summary',
   'get_uncovered_diff',
 ]);
 
 describe('tools/list shape', () => {
-  it('exposes exactly four tools with snake_case names', () => {
+  it('exposes the coverage and CLI-wrapper tools with snake_case names', () => {
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
+      'check',
+      'doctor',
       'explain_line',
       'get_coverage_summary',
       'get_uncovered_diff',
+      'push',
       'write_and_verify',
     ]);
   });
@@ -88,6 +104,19 @@ describe('tools/list shape', () => {
     expect(tool?.annotations?.destructiveHint).toBe(true);
     expect(tool?.annotations?.idempotentHint).toBe(false);
     expect(tool?.annotations?.openWorldHint).toBe(false);
+  });
+
+  it('write_and_verify describes testRunner from .tested.yaml', () => {
+    const tool = tools.find((t) => t.name === 'write_and_verify');
+    expect(tool?.description).toMatch(/testRunner/);
+    expect(tool?.description).toMatch(/vitest/);
+  });
+
+  it('push advertises open-world write annotations', () => {
+    const tool = tools.find((t) => t.name === 'push');
+    expect(tool, 'push not registered').toBeDefined();
+    expect(tool?.annotations?.readOnlyHint).toBe(false);
+    expect(tool?.annotations?.openWorldHint).toBe(true);
   });
 });
 

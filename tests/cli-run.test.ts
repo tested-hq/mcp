@@ -71,6 +71,18 @@ describe('runCli', () => {
     expect(spawn).not.toHaveBeenCalled();
   });
 
+  it('rewrites a missing origin/main git fatal into a friendly error', async () => {
+    const { child, pending } = await startRun(['diff', '--base', 'origin/main', '--json']);
+    child.stderr!.emit(
+      'data',
+      Buffer.from(
+        "fatal: ambiguous argument 'origin/main': unknown revision or path not in the working tree.",
+      ),
+    );
+    child.emit('close', 128);
+    await expect(pending).rejects.toThrow(/does not exist in this repository/);
+  });
+
   it('rejects a non-zero exit and includes truncated streams', async () => {
     const { child, pending } = await startRun();
     child.stderr!.emit('data', Buffer.from('boom-stderr'));
