@@ -17,6 +17,7 @@
     "dev": "tsx bin/tested-mcp.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit"
   },
   "engines": {

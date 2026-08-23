@@ -11,10 +11,12 @@ permissions:
 
 jobs:
   test:
-    name: typecheck + test + build
+    name: typecheck + test:coverage + build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -32,6 +34,6 @@ jobs:
 
       - run: pnpm typecheck
 
-      - run: pnpm test
+      - run: pnpm test:coverage
 
       - run: pnpm build

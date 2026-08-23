@@ -131,6 +131,35 @@ describe('writeAndVerify', () => {
     expect(runTestsMock).not.toHaveBeenCalled();
   });
 
+  it('rejects an unsafe git ref after cwd validation', async () => {
+    await expect(
+      writeAndVerify({
+        cwd: tmpDir,
+        base: '--output=/tmp/x',
+        path: 'tests/foo.test.ts',
+        content: 'x',
+      }),
+    ).rejects.toThrow(/must not start with/);
+    expect(runTestsMock).not.toHaveBeenCalled();
+  });
+
+  it('writes content that is exactly at the byte limit', async () => {
+    runTestsMock.mockResolvedValue({ success: true, stdout: '', stderr: '' });
+    const { MAX_WRITE_CONTENT_BYTES } = await import(
+      '../../src/tools/write_and_verify.js'
+    );
+    const content = 'x'.repeat(MAX_WRITE_CONTENT_BYTES);
+    mkdirSync(join(tmpDir, 'tests'), { recursive: true });
+    const result = await writeAndVerify({
+      cwd: tmpDir,
+      base: 'HEAD',
+      path: 'tests/exact.test.ts',
+      content,
+    });
+    expect(result.success).toBe(true);
+    expect(result.bytesWritten).toBe(MAX_WRITE_CONTENT_BYTES);
+  });
+
   it('rejects oversized content (DoS guard)', async () => {
     runTestsMock.mockResolvedValue({ success: true, stdout: '', stderr: '' });
     const { MAX_WRITE_CONTENT_BYTES } = await import(

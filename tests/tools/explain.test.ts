@@ -25,4 +25,10 @@ describe('explain', () => {
     expect(result.reason).toBe('not executed');
     expect(result.codeExcerpt).toBe("42  if (opts.json) {");
   });
+
+  it('rejects CLI JSON that does not match the explain schema', async () => {
+    const { runCli } = await import('../../src/cli.js');
+    vi.mocked(runCli).mockResolvedValueOnce({ path: 'x.ts' });
+    await expect(explain({ cwd: '/repo', location: 'x.ts:1' })).rejects.toThrow();
+  });
 });

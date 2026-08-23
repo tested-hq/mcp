@@ -77,4 +77,11 @@ describe('validateCwd', () => {
     await expect(validateCwd(dir)).resolves.toBeUndefined();
     await expect(validateCwd(other)).rejects.toThrow(/TESTED_ALLOWED_CWDS/);
   });
+
+  it('ignores empty allowlist segments', async () => {
+    const dir = makeTmpGitRepo();
+    cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+    process.env['TESTED_ALLOWED_CWDS'] = `:${dir}:`;
+    await expect(validateCwd(dir)).resolves.toBeUndefined();
+  });
 });
