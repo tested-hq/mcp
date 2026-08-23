@@ -1,16 +1,28 @@
 {
   "name": "@tested/mcp",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "MCP server exposing tested coverage tools over stdio for Claude Code / Cursor / Claude API.",
-  "private": true,
+  "license": "MIT",
+  "homepage": "https://tested.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tested-hq/mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tested-hq/mcp/issues"
+  },
   "type": "module",
   "packageManager": "pnpm@11.3.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "tested-mcp": "./dist/tested-mcp.js"
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsup",
