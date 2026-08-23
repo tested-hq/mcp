@@ -7,14 +7,14 @@ import {
 } from '../src/schemas.js';
 
 describe('SafeGitRef', () => {
-  it('accepts a normal ref and applies the default on BaseInput via WriteAndVerify', () => {
+  it('accepts a normal ref and leaves base unset when omitted', () => {
     expect(SafeGitRef.parse('origin/main')).toBe('origin/main');
     const parsed = WriteAndVerifyInput.parse({
       cwd: '/repo',
       path: 'tests/a.test.ts',
       content: 'export {}',
     });
-    expect(parsed.base).toBe('origin/main');
+    expect(parsed.base).toBeUndefined();
   });
 
   it('rejects a leading dash and illegal charset', () => {

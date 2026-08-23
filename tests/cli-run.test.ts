@@ -28,7 +28,7 @@ afterEach(() => {
 
 async function startRun(
   args: string[] = ['diff', '--json'],
-  opts: { timeoutMs?: number } = {},
+  opts: { timeoutMs?: number; allowNonZero?: boolean } = {},
 ): Promise<{
   child: ReturnType<typeof fakeChild>;
   pending: Promise<unknown>;
@@ -69,6 +69,30 @@ describe('runCli', () => {
   it('rejects null-byte arguments before spawn', async () => {
     await expect(runCli(['foo\0bar'], { cwd: repo })).rejects.toThrow(/null/);
     expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it('rewrites a missing origin/main git fatal into a friendly error', async () => {
+    const { child, pending } = await startRun(['diff', '--base', 'origin/main', '--json']);
+    child.stderr!.emit(
+      'data',
+      Buffer.from(
+        "fatal: ambiguous argument 'origin/main': unknown revision or path not in the working tree.",
+      ),
+    );
+    child.emit('close', 128);
+    await expect(pending).rejects.toThrow(/does not exist in this repository/);
+  });
+
+  it('parses JSON on a non-zero exit when allowNonZero is set', async () => {
+    const { child, pending } = await startRun(['check', '--json'], {
+      allowNonZero: true,
+    });
+    child.stdout!.emit(
+      'data',
+      Buffer.from('{"overall":"fail","patch":{"pct":10,"threshold":80,"pass":false},"project":{"pct":90,"threshold":90,"pass":true}}'),
+    );
+    child.emit('close', 1);
+    await expect(pending).resolves.toMatchObject({ overall: 'fail' });
   });
 
   it('rejects a non-zero exit and includes truncated streams', async () => {

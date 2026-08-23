@@ -4,7 +4,11 @@ import { SAFE_GIT_REF_RE } from './git-ref.js';
 // ─── Shared input fields ───────────────────────────────────────────────────
 
 export const CwdInput = z.object({
-  cwd: z.string().describe('Absolute path to the repository root.'),
+  cwd: z
+    .string()
+    .describe(
+      'Absolute path to a git repository root (directory containing .git/). Relative paths are rejected.',
+    ),
 });
 
 /** Git ref constrained to a safe charset (no leading `-`, max 256). */
@@ -21,9 +25,9 @@ export const SafeGitRef = z
   });
 
 export const BaseInput = CwdInput.extend({
-  base: SafeGitRef.optional()
-    .default('origin/main')
-    .describe('Git ref to diff against (branch, tag, or SHA). Defaults to origin/main.'),
+  base: SafeGitRef.optional().describe(
+    'Git ref to diff against (branch, tag, or SHA). If omitted, uses .tested.yaml base when that ref exists, otherwise origin/main, HEAD~1, or HEAD.',
+  ),
 });
 
 // ─── Tool input schemas ────────────────────────────────────────────────────
@@ -160,3 +164,75 @@ export const WriteAndVerifyOutput = z.object({
   diff: GetUncoveredDiffOutput.optional(),
 });
 export type WriteAndVerifyOutput = z.infer<typeof WriteAndVerifyOutput>;
+
+export const CheckInput = BaseInput;
+export type CheckInput = z.infer<typeof CheckInput>;
+
+export const CheckOutput = z.object({
+  skipped: z.boolean().optional(),
+  patch: z
+    .object({
+      pct: z.number(),
+      threshold: z.number(),
+      pass: z.boolean(),
+      skipped: z.boolean().optional(),
+      reason: z.string().optional(),
+    })
+    .optional(),
+  project: z
+    .object({
+      pct: z.number(),
+      threshold: z.number(),
+      pass: z.boolean(),
+    })
+    .optional(),
+  overall: z.enum(['pass', 'fail']).optional(),
+  note: z.string().optional(),
+  detail: z.string().optional(),
+});
+export type CheckOutput = z.infer<typeof CheckOutput>;
+
+export const PushInput = BaseInput.extend({
+  token: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Ingest token. If omitted, uses TESTED_TOKEN from the MCP server environment. Never forwarded to the test runner.',
+    ),
+  pr: z.string().optional().describe('PR number. Required unless mainline is true.'),
+  mainline: z
+    .boolean()
+    .optional()
+    .describe('Upload default-branch coverage only (no share URL).'),
+  owner: z.string().optional().describe('Repo owner (default: git remote origin).'),
+  name: z.string().optional().describe('Repo name (default: git remote origin).'),
+});
+export type PushInput = z.infer<typeof PushInput>;
+
+export const PushOutput = z.object({
+  shareUrl: z.string().optional(),
+  expiresAt: z.string().optional(),
+  mainline: z.boolean().optional(),
+  date: z.string().optional(),
+  projectPct: z.number().optional(),
+});
+export type PushOutput = z.infer<typeof PushOutput>;
+
+export const DoctorInput = CwdInput;
+export type DoctorInput = z.infer<typeof DoctorInput>;
+
+export const DoctorOutput = z.object({
+  schemaVersion: z.literal(1),
+  ok: z.boolean(),
+  checks: z.array(
+    z.object({
+      id: z.string(),
+      label: z.string(),
+      status: z.enum(['pass', 'fail', 'warn', 'skip']),
+      detail: z.string(),
+      optional: z.boolean().optional(),
+    }),
+  ),
+});
+export type DoctorOutput = z.infer<typeof DoctorOutput>;

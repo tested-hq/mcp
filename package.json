@@ -1,6 +1,6 @@
 {
   "name": "@tested/mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server exposing tested coverage tools over stdio for Claude Code / Cursor / Claude API.",
   "license": "MIT",
   "homepage": "https://tested.dev",
@@ -33,10 +33,11 @@
     "typecheck": "tsc --noEmit"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",
+    "@tested/cli": "^0.1.5",
     "zod": "4.4.3"
   },
   "devDependencies": {
