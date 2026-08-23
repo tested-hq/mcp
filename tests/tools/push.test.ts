@@ -79,14 +79,11 @@ describe('push', () => {
     try {
       const result = await push({ cwd, token: 'arg-token', mainline: true });
       expect(result.shareUrl).toMatch(/tested\.dev/);
-      const [args, opts] = runCliMock.mock.calls[0] as [
-        string[],
-        { env?: NodeJS.ProcessEnv },
-      ];
+      const [args, opts] = runCliMock.mock.calls[0] ?? [];
       expect(args).toContain('--json');
       expect(args).toContain('--mainline');
       expect(args).not.toContain('--token');
-      expect(opts.env?.TESTED_TOKEN).toBe('arg-token');
+      expect(opts?.env?.TESTED_TOKEN).toBe('arg-token');
     } finally {
       if (prev === undefined) delete process.env['TESTED_TOKEN'];
       else process.env['TESTED_TOKEN'] = prev;
@@ -104,18 +101,20 @@ describe('push', () => {
       name: 'app',
       base: 'HEAD',
     });
-    const [args] = runCliMock.mock.calls[0] as [string[]];
-    expect(args).toEqual([
-      'push',
-      '--json',
-      '--base',
-      'HEAD',
-      '--pr',
-      '12',
-      '--owner',
-      'acme',
-      '--name',
-      'app',
-    ]);
+    expect(runCliMock).toHaveBeenCalledWith(
+      [
+        'push',
+        '--json',
+        '--base',
+        'HEAD',
+        '--pr',
+        '12',
+        '--owner',
+        'acme',
+        '--name',
+        'app',
+      ],
+      expect.objectContaining({ cwd, allowNonZero: true }),
+    );
   });
 });
