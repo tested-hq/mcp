@@ -23,7 +23,7 @@ Also recommended:
 | `TESTED_BIN` | Absolute path to `dist/tested.js` (admin-controlled) |
 | `TESTED_BIN_ALLOW_PREFIX` | Colon-separated realpath prefixes; when set, `TESTED_BIN` realpath must stay under one, and basename must be `tested` or `tested.js` |
 
-Writes refuse intermediate symlink escapes (realpath + lstat walk). Read tools hard-truncate large `files[]` payloads (`truncated: true`, max ~200 files / 64 KiB).
+Writes refuse intermediate symlink escapes (realpath + lstat walk). Read tools hard-truncate large `files[]` payloads (`truncated: true`, max ~200 files / 64 KiB). CLI and `npx vitest` children do not inherit `TESTED_TOKEN` / `TESTED_TOKEN_FILE` / `TESTED_INGEST_TOKEN` or other `*_TOKEN` / `*_SECRET` host credentials.
 
 ## Requirements
 
@@ -207,6 +207,7 @@ On runner failure, returns `success: false` with the captured `vitestStderr` so 
 | `TESTED_BIN` | auto-resolved from `@tested/cli` or `which tested` | Absolute path to the tested CLI binary |
 | `TESTED_BIN_ALLOW_PREFIX` | unset | Colon-separated realpath prefixes; when set, enforce basename `tested`/`tested.js` and prefix membership |
 | `TESTED_ALLOWED_CWDS` | unset | Colon-separated absolute cwd allowlist (recommended for always-on hosts) |
+| `TESTED_TOKEN` / `TESTED_TOKEN_FILE` / `TESTED_INGEST_TOKEN` | (host only) | Ingest credentials. Stripped from CLI and `npx vitest` child env; this server never sends them to `tested diff` / `tested explain` |
 
 ## Development
 

@@ -15,6 +15,7 @@
  *     deepest existing ancestor and an lstat walk that refuses symlink
  *     components pointing outside the tree.
  *   - content size is hard-capped to limit DoS / disk fill.
+ *   - CLI and test-runner children get a sanitized env (no TESTED_TOKEN).
  */
 
 import { writeFile } from 'node:fs/promises';
