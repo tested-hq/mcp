@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -11,6 +11,10 @@ vi.mock('../../src/cli.js', () => ({
 const { doctor } = await import('../../src/tools/doctor.js');
 const { runCli } = await import('../../src/cli.js');
 const runCliMock = vi.mocked(runCli);
+
+beforeEach(() => {
+  runCliMock.mockReset();
+});
 
 describe('doctor', () => {
   it('calls tested doctor --json', async () => {

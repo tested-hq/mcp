@@ -175,6 +175,28 @@ describe('registered tool handlers', () => {
     expect(result.content?.[0]?.text).toMatch(/token/);
   });
 
+  it('check returns isError:true when the tool throws', async () => {
+    check.mockRejectedValueOnce(new Error('cwd must be an absolute path to a git repository root'));
+    const raw = await client.callTool({
+      name: 'check',
+      arguments: { cwd: '/repo' },
+    });
+    const result = raw as unknown as CallResult;
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toMatch(/absolute path/);
+  });
+
+  it('doctor returns isError:true when the tool throws', async () => {
+    doctor.mockRejectedValueOnce(new Error('cwd must be an absolute path to a git repository root'));
+    const raw = await client.callTool({
+      name: 'doctor',
+      arguments: { cwd: '/repo' },
+    });
+    const result = raw as unknown as CallResult;
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toMatch(/git repository/);
+  });
+
   it('doctor returns structuredContent on success', async () => {
     doctor.mockResolvedValueOnce({
       schemaVersion: 1,

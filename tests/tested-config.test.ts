@@ -57,6 +57,14 @@ describe('readTestedYamlFields', () => {
     expect(readTestedYamlFields(dir)).toEqual({ base: null, testRunner: null });
   });
 
+  it('rethrows non-ENOENT read errors', () => {
+    const dir = join(tmpdir(), `tested-yaml-${Math.random().toString(16).slice(2)}`);
+    mkdirSync(dir);
+    cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+    mkdirSync(join(dir, '.tested.yaml'));
+    expect(() => readTestedYamlFields(dir)).toThrow();
+  });
+
   it('reads a file from cwd', () => {
     const dir = join(tmpdir(), `tested-yaml-${Math.random().toString(16).slice(2)}`);
     mkdirSync(dir);

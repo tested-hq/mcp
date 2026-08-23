@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -12,6 +12,10 @@ const { envForPushCli, push, resolvePushToken, MISSING_PUSH_TOKEN_MESSAGE } =
   await import('../../src/tools/push.js');
 const { runCli } = await import('../../src/cli.js');
 const runCliMock = vi.mocked(runCli);
+
+beforeEach(() => {
+  runCliMock.mockReset();
+});
 
 function repoWithCommits(): string {
   const dir = mkdtempSync(join(tmpdir(), 'mcp-push-'));
@@ -39,6 +43,17 @@ describe('resolvePushToken', () => {
 
   it('throws when neither argument nor TESTED_TOKEN is set', () => {
     expect(() => resolvePushToken({ env: {} })).toThrow(MISSING_PUSH_TOKEN_MESSAGE);
+  });
+
+  it('reads TESTED_TOKEN from process.env when env is omitted', () => {
+    const prev = process.env['TESTED_TOKEN'];
+    process.env['TESTED_TOKEN'] = 'proc-token';
+    try {
+      expect(resolvePushToken({})).toBe('proc-token');
+    } finally {
+      if (prev === undefined) delete process.env['TESTED_TOKEN'];
+      else process.env['TESTED_TOKEN'] = prev;
+    }
   });
 });
 
@@ -76,5 +91,31 @@ describe('push', () => {
       if (prev === undefined) delete process.env['TESTED_TOKEN'];
       else process.env['TESTED_TOKEN'] = prev;
     }
+  });
+
+  it('forwards pr, owner, name, and an explicit base', async () => {
+    runCliMock.mockResolvedValueOnce({ shareUrl: 'https://app.tested.dev/s/y' });
+    const cwd = repoWithCommits();
+    await push({
+      cwd,
+      token: 't',
+      pr: '12',
+      owner: 'acme',
+      name: 'app',
+      base: 'HEAD',
+    });
+    const [args] = runCliMock.mock.calls[0] as [string[]];
+    expect(args).toEqual([
+      'push',
+      '--json',
+      '--base',
+      'HEAD',
+      '--pr',
+      '12',
+      '--owner',
+      'acme',
+      '--name',
+      'app',
+    ]);
   });
 });

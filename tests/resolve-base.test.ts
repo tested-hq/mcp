@@ -128,4 +128,9 @@ describe('friendlyGitRefError', () => {
   it('returns null for unrelated failures', () => {
     expect(friendlyGitRefError('coverage-final.json not found')).toBeNull();
   });
+
+  it('names the requested base when the ref string is omitted', () => {
+    const msg = friendlyGitRefError('Needed a single revision');
+    expect(msg).toMatch(/the requested base/);
+  });
 });
