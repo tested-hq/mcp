@@ -33,28 +33,31 @@ Writes refuse intermediate symlink escapes (realpath + lstat walk). Read tools h
 
 ## Install
 
-This package is private during the validation phase. Clone or copy the `mcp/` directory and run:
-
 ```bash
-pnpm install
-pnpm run build
+pnpm add -D @tested/mcp
 ```
 
-The built binary is at `dist/tested-mcp.js`.
+Or run without adding a dep:
 
-## Configuration in Claude Code
+```bash
+npx @tested/mcp
+```
 
-Add to your project's `.mcp.json` (or global `~/.claude/mcp.json`):
+Needs `@tested/cli` on disk, or `TESTED_BIN` pointing at `tested.js`. See Requirements.
+
+## Cursor / Claude Code
+
+Same stdio config in Cursor (`.cursor/mcp.json`) and Claude Code (`.mcp.json` or `~/.claude.json`):
 
 ```json
 {
   "mcpServers": {
     "tested": {
-      "command": "node",
-      "args": ["/absolute/path/to/tested-hq/mcp/dist/tested-mcp.js"],
+      "command": "npx",
+      "args": ["-y", "@tested/mcp"],
       "env": {
-        "TESTED_BIN": "/absolute/path/to/tested-hq/cli/dist/tested.js",
-        "TESTED_BIN_ALLOW_PREFIX": "/absolute/path/to/tested-hq/cli/dist",
+        "TESTED_BIN": "/absolute/path/to/tested.js",
+        "TESTED_BIN_ALLOW_PREFIX": "/absolute/path/to/cli/dist",
         "TESTED_ALLOWED_CWDS": "/absolute/path/to/your-project"
       }
     }
@@ -62,7 +65,9 @@ Add to your project's `.mcp.json` (or global `~/.claude/mcp.json`):
 }
 ```
 
-> **Tip:** If `TESTED_BIN` is not set, the server resolves the binary via `require.resolve('@tested/cli/dist/tested.js')` (when installed as a dep) or falls back to `which tested` on PATH. Set this env var only to override that lookup. Prefer an absolute admin-controlled path and `TESTED_BIN_ALLOW_PREFIX` in production hosts.
+If `@tested/mcp` is already a project dep, use `"command": "tested-mcp"` and drop `args`.
+
+If `TESTED_BIN` is unset, the server resolves `@tested/cli/dist/tested.js`, then `which tested`. Set the env var only to override. On always-on hosts, pin an absolute path and `TESTED_BIN_ALLOW_PREFIX`.
 
 ## Tools
 
