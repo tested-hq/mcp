@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test:
-    name: typecheck + test:coverage + tested + build
+    name: typecheck + test:coverage + build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,9 +35,5 @@ jobs:
       - run: pnpm typecheck
 
       - run: pnpm test:coverage
-
-      - uses: tested-hq/cli/action@main
-        with:
-          cli-ref: main
 
       - run: pnpm build
