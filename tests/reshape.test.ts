@@ -152,4 +152,41 @@ describe('toSummary', () => {
     expect(explainFile?.lines.total).toBe(80);
     expect(explainFile?.lines.covered).toBe(58); // 80 - 22
   });
+
+  it('treats a null projectCoverage as 0%', () => {
+    const raw: CliDiffOutput = {
+      ...FIXTURE_DIFF,
+      files: [
+        {
+          path: 'src/unknown.ts',
+          patchCoverage: null,
+          projectCoverage: null,
+          uncoveredRanges: [{ start: 3, end: 6, kind: 'branch' }],
+        },
+      ],
+    };
+    const result = toSummary(raw);
+    expect(result.files[0]?.lines).toEqual({ total: 4, covered: 0, pct: 0 });
+  });
+
+  it('preserves branch and function range kinds in the uncovered diff', () => {
+    const raw: CliDiffOutput = {
+      ...FIXTURE_DIFF,
+      files: [
+        {
+          path: 'src/kinds.ts',
+          patchCoverage: 50,
+          projectCoverage: 50,
+          uncoveredRanges: [
+            { start: 1, end: 1, kind: 'branch' },
+            { start: 8, end: 12, kind: 'function' },
+          ],
+        },
+      ],
+    };
+    expect(toUncoveredDiff(raw).files[0]?.ranges).toEqual([
+      { start: 1, end: 1, kind: 'branch' },
+      { start: 8, end: 12, kind: 'function' },
+    ]);
+  });
 });

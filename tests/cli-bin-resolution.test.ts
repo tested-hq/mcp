@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -122,6 +122,82 @@ describe('TESTED_BIN resolution', () => {
   // The shape assertion runs unconditionally — tests/setup.ts always sets
   // TESTED_BIN to either the real sibling binary or a placeholder path, so
   // the resolver never throws during test collection.
+  it('rejects a whitespace-only override', async () => {
+    const { assertSafeTestedBin } = await import('../src/cli.js');
+    expect(() => assertSafeTestedBin('   ')).toThrow(/empty/);
+  });
+
+  it('warns to stderr by default when basename is unexpected', async () => {
+    const { assertSafeTestedBin } = await import('../src/cli.js');
+    const write = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    expect(assertSafeTestedBin('/abs/path/evil.js', { env: {} })).toBe(
+      '/abs/path/evil.js',
+    );
+    expect(write.mock.calls.some((c) => String(c[0]).includes('basename'))).toBe(
+      true,
+    );
+    write.mockRestore();
+  });
+
+  it('treats an empty prefix policy as unset (warn-only basename)', async () => {
+    const { assertSafeTestedBin } = await import('../src/cli.js');
+    const warnings: string[] = [];
+    expect(
+      assertSafeTestedBin('/abs/path/evil.js', {
+        env: { TESTED_BIN_ALLOW_PREFIX: '  :  : ' },
+        warn: (m) => warnings.push(m),
+      }),
+    ).toBe('/abs/path/evil.js');
+    expect(warnings.some((w) => /basename/.test(w))).toBe(true);
+  });
+
+  it('fails closed when the bin cannot be realpath\'d under a prefix policy', async () => {
+    const { assertSafeTestedBin } = await import('../src/cli.js');
+    expect(() =>
+      assertSafeTestedBin('/no/such/tested.js', {
+        env: { TESTED_BIN_ALLOW_PREFIX: '/tmp' },
+      }),
+    ).toThrow(/cannot be resolved/);
+  });
+
+  it('skips a missing prefix entry and accepts a later matching one', async () => {
+    const { assertSafeTestedBin } = await import('../src/cli.js');
+    const allowed = mkdtempSync(join(tmpdir(), 'tested-bin-skip-'));
+    const bin = join(allowed, 'tested.js');
+    writeFileSync(bin, '// ok');
+    expect(
+      assertSafeTestedBin(bin, {
+        env: {
+          TESTED_BIN_ALLOW_PREFIX: `/no/such/prefix-xyz:${allowed}`,
+        },
+      }),
+    ).toBe(bin);
+  });
+
+  it('accepts a prefix that already ends with a separator', async () => {
+    const { assertSafeTestedBin } = await import('../src/cli.js');
+    const allowed = mkdtempSync(join(tmpdir(), 'tested-bin-sep-'));
+    const bin = join(allowed, 'tested.js');
+    writeFileSync(bin, '// ok');
+    expect(
+      assertSafeTestedBin(bin, {
+        env: { TESTED_BIN_ALLOW_PREFIX: `${realpathSync(allowed)}/` },
+      }),
+    ).toBe(bin);
+  });
+
+  it('accepts a bin that is exactly the allowed prefix', async () => {
+    const { assertSafeTestedBin } = await import('../src/cli.js');
+    const allowed = mkdtempSync(join(tmpdir(), 'tested-bin-eq-'));
+    const bin = join(allowed, 'tested.js');
+    writeFileSync(bin, '// ok');
+    expect(
+      assertSafeTestedBin(bin, {
+        env: { TESTED_BIN_ALLOW_PREFIX: realpathSync(bin) },
+      }),
+    ).toBe(bin);
+  });
+
   it('resolves to a path ending in tested.js', async () => {
     const mod = await import('../src/cli.js');
     expect(mod.TESTED_BIN).toMatch(/tested\.js$/);

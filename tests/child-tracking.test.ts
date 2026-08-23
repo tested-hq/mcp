@@ -34,4 +34,22 @@ describe('trackChild / killAllChildren', () => {
     await new Promise((r) => setImmediate(r));
     expect(inFlightCount()).toBe(before);
   });
+
+  it('swallows kill errors so one dead child cannot abort shutdown', () => {
+    const before = inFlightCount();
+    const fake = {
+      kill() {
+        throw new Error('ESRCH');
+      },
+      once(event: string, cb: () => void) {
+        if (event === 'exit') {
+          queueMicrotask(cb);
+        }
+        return fake;
+      },
+    };
+    trackChild(fake as unknown as Parameters<typeof trackChild>[0]);
+    expect(inFlightCount()).toBe(before + 1);
+    expect(() => killAllChildren('SIGTERM')).not.toThrow();
+  });
 });

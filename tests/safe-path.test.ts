@@ -115,3 +115,34 @@ describe('realpathDeepestExisting', () => {
     expect(r).toBeTruthy();
   });
 });
+
+describe('assertSafeWritePath extra guards', () => {
+  it('rejects a path containing a NUL byte', async () => {
+    await expect(assertSafeWritePath(tmpDir, 'tests/\0evil.ts')).rejects.toThrow(
+      /null/,
+    );
+  });
+
+  it('rejects a cwd that cannot be realpath\'d', async () => {
+    await expect(
+      assertSafeWritePath(join(tmpDir, 'missing-cwd'), 'a.ts'),
+    ).rejects.toThrow(/realpath/);
+  });
+
+  it('rejects a broken symlink component', async () => {
+    const linkPath = join(tmpDir, 'broken');
+    try {
+      symlinkSync(join(tmpDir, 'does-not-exist-target'), linkPath);
+    } catch {
+      return;
+    }
+    await expect(assertSafeWritePath(tmpDir, 'broken/x.ts')).rejects.toThrow(
+      /broken symlink|escapes/i,
+    );
+  });
+
+  it('accepts a root that already ends with a separator', () => {
+    expect(isUnderRoot('/repo/', '/repo/src/a.ts')).toBe(true);
+    expect(isUnderRoot('/repo/', '/repo-evil/a.ts')).toBe(false);
+  });
+});

@@ -49,4 +49,19 @@ describe('getSummary', () => {
     expect(runFile?.lines.covered).toBe(0);
     expect(runFile?.lines.pct).toBe(0);
   });
+
+  it('rejects an unsafe git ref before calling the CLI', async () => {
+    const { runCli } = await import('../../src/cli.js');
+    vi.mocked(runCli).mockClear();
+    await expect(
+      getSummary({ cwd: '/repo', base: 'foo;rm' }),
+    ).rejects.toThrow(/invalid/);
+    expect(vi.mocked(runCli)).not.toHaveBeenCalled();
+  });
+
+  it('rejects CLI JSON that does not match the v1 schema', async () => {
+    const { runCli } = await import('../../src/cli.js');
+    vi.mocked(runCli).mockResolvedValueOnce({ not: 'a-diff' });
+    await expect(getSummary({ cwd: '/repo', base: 'HEAD' })).rejects.toThrow();
+  });
 });

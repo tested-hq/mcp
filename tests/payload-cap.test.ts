@@ -1,8 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   applyPayloadCap,
+  maybeWarnPayloadSize,
   PAYLOAD_MAX_BYTES,
   PAYLOAD_MAX_FILES,
+  PAYLOAD_SOFT_CAP_BYTES,
 } from '../src/payload-cap.js';
 
 describe('applyPayloadCap', () => {
@@ -61,5 +63,34 @@ describe('applyPayloadCap', () => {
     const out = applyPayloadCap({ files });
     expect(out.truncated).toBe(true);
     expect(out.files.length).toBe(0);
+  });
+
+  it('drops a quarter of files when far over the byte budget', () => {
+    const files = Array.from({ length: 40 }, (_, i) => ({
+      path: `src/${'y'.repeat(8000)}_${i}.ts`,
+      ranges: Array.from({ length: 80 }, (__, j) => ({
+        start: j + 1,
+        end: j + 20,
+        kind: 'line' as const,
+      })),
+    }));
+    const out = applyPayloadCap({ files });
+    expect(out.truncated).toBe(true);
+    expect(out.files.length).toBeLessThan(files.length);
+    expect(Buffer.byteLength(JSON.stringify(out), 'utf8')).toBeLessThanOrEqual(
+      PAYLOAD_MAX_BYTES,
+    );
+  });
+});
+
+describe('maybeWarnPayloadSize', () => {
+  it('writes a soft-cap notice only when over the threshold', () => {
+    const write = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    maybeWarnPayloadSize('get_uncovered_diff', PAYLOAD_SOFT_CAP_BYTES);
+    expect(write).not.toHaveBeenCalled();
+    maybeWarnPayloadSize('get_uncovered_diff', PAYLOAD_SOFT_CAP_BYTES + 1);
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(String(write.mock.calls[0]?.[0])).toMatch(/soft cap/);
+    write.mockRestore();
   });
 });
