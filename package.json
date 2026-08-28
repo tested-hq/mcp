@@ -29,7 +29,7 @@
     "dev": "tsx bin/tested-mcp.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage --reporter=default --reporter=junit --outputFile.junit=junit.xml",
     "typecheck": "tsc --noEmit"
   },
   "engines": {
