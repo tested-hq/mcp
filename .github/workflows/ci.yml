@@ -36,8 +36,16 @@ jobs:
 
       - run: pnpm test:coverage
 
+      # Coverage gate + ingest (JUnit flakes / suite time) on every PR.
+      # Run after a failed suite so junit.xml still uploads. push is
+      # continue-on-error inside the Action; check remains the gate.
       - uses: tested-hq/cli/action@main
+        if: success() || failure()
         with:
+          version: 0.1.7
+          push: true
+          pr-number: ${{ github.event.pull_request.number }}
           token: ${{ secrets.TESTED_TOKEN }}
+          junit: junit.xml
 
       - run: pnpm build
