@@ -192,13 +192,37 @@ describe('prompts/list skills', () => {
   });
 
   it('getPrompt(close-patch) sequences the real tools', async () => {
-    const prompt = await client.getPrompt({ name: 'close-patch' });
+    const prompt = await client.getPrompt({
+      name: 'close-patch',
+      arguments: { cwd: '/repo' },
+    });
     const text = prompt.messages.map((m) => JSON.stringify(m)).join('\n');
     expect(text).toMatch(/get_uncovered_diff/);
     expect(text).toMatch(/map_uncovered_to_test/);
     expect(text).toMatch(/write_and_verify/);
     expect(text).toMatch(/check/);
+    expect(text).toMatch(/cwd: \/repo/);
     expect(text.toLowerCase()).not.toMatch(/mock/);
+  });
+
+  it('exposes skill markdown as tested://skills resources', async () => {
+    const { resources } = await client.listResources();
+    const uris = resources.map((r) => r.uri).sort();
+    expect(uris).toEqual(['tested://skills/close-patch', 'tested://skills/triage']);
+    const triage = await client.readResource({ uri: 'tested://skills/triage' });
+    const close = await client.readResource({ uri: 'tested://skills/close-patch' });
+    const body = [...triage.contents, ...close.contents]
+      .map((c) => ('text' in c ? c.text : ''))
+      .join('\n');
+    expect(body).toMatch(/get_failed/);
+    expect(body).toMatch(/write_and_verify/);
+    expect(body.toLowerCase()).not.toMatch(/mock/);
+
+    const triagePrompt = await client.getPrompt({
+      name: 'triage',
+      arguments: { cwd: '/repo' },
+    });
+    expect(JSON.stringify(triagePrompt)).toMatch(/cwd: \/repo/);
   });
 });
 

@@ -37,11 +37,11 @@ describe('e2e: get_failed + get_flakes on flake-slow.junit.xml', () => {
     const hard = failed.failed.find((f) => f.name === 'login fail');
     expect(hard).toMatchObject({
       name: 'login fail',
-      file: undefined,
       message: 'expected 200',
       durationMs: 200,
       alreadyFlaky: false,
     });
+    expect(hard).not.toHaveProperty('file');
 
     const flaky = failed.failed.find((f) => f.name === 'retry me');
     expect(flaky).toMatchObject({
