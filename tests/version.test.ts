@@ -5,7 +5,7 @@ import { MCP_VERSION } from '../src/version.js';
 describe('package version', () => {
   it('matches package.json (serverInfo uses MCP_VERSION)', () => {
     expect(MCP_VERSION).toBe(pkg.version);
-    expect(pkg.version).toBe('0.1.1');
+    expect(pkg.version).toBe('0.1.2');
   });
 
   it('requires Node 24+', () => {
