@@ -6,10 +6,19 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createServer } from '../src/server.js';
 import { MCP_VERSION } from '../src/version.js';
+import { makeTmpGitRepo } from './helpers/tmp-git.js';
+
+const FIXTURE = readFileSync(
+  fileURLToPath(new URL('./fixtures/flake-slow.junit.xml', import.meta.url)),
+  'utf8',
+);
 
 interface ListedTool {
   name: string;
@@ -62,6 +71,8 @@ const READ_ONLY_TOOLS = new Set([
   'doctor',
   'explain_line',
   'get_coverage_summary',
+  'get_flakes',
+  'get_performance',
   'get_uncovered_diff',
 ]);
 
@@ -73,6 +84,8 @@ describe('tools/list shape', () => {
       'doctor',
       'explain_line',
       'get_coverage_summary',
+      'get_flakes',
+      'get_performance',
       'get_uncovered_diff',
       'push',
       'write_and_verify',
@@ -150,5 +163,80 @@ describe('tool execution error handling', () => {
     const result = raw as unknown as CallResult;
     expect(result.isError).toBe(true);
     expect(result.content?.[0]?.text).toMatch(/does not exist/);
+  });
+});
+
+describe('get_flakes + get_performance (real JUnit fixture)', () => {
+  const prevJunit = process.env['TESTED_JUNIT'];
+  beforeAll(() => {
+    delete process.env['TESTED_JUNIT'];
+  });
+  afterAll(() => {
+    if (prevJunit === undefined) delete process.env['TESTED_JUNIT'];
+    else process.env['TESTED_JUNIT'] = prevJunit;
+  });
+
+  it('return real flake and duration numbers from a fixture with a flake and a slow test', async () => {
+    const cwd = makeTmpGitRepo();
+    writeFileSync(join(cwd, 'junit.xml'), FIXTURE);
+
+    const flakesRaw = await client.callTool({
+      name: 'get_flakes',
+      arguments: { cwd },
+    });
+    const flakes = flakesRaw as unknown as CallResult & {
+      structuredContent?: Record<string, unknown>;
+    };
+    expect(flakes.isError).toBeFalsy();
+    const flakeBody = flakes.structuredContent as {
+      found: boolean;
+      tests: number;
+      failed: number;
+      flaky: number;
+      flakes: Array<{ name: string; attempts: number; durationMs: number }>;
+      failures: Array<{ name: string; durationMs: number }>;
+    };
+    expect(flakeBody.found).toBe(true);
+    expect(flakeBody.tests).toBe(5);
+    expect(flakeBody.failed).toBe(1);
+    expect(flakeBody.flaky).toBe(1);
+    expect(flakeBody.flakes[0]?.name).toBe('retry me');
+    expect(flakeBody.flakes[0]?.attempts).toBe(2);
+    expect(flakeBody.flakes[0]?.durationMs).toBe(130);
+    expect(flakeBody.failures.some((f) => f.name === 'login fail')).toBe(true);
+    expect(JSON.stringify(flakeBody).toLowerCase()).not.toMatch(/mock/);
+
+    const perfRaw = await client.callTool({
+      name: 'get_performance',
+      arguments: { cwd },
+    });
+    const perf = perfRaw as unknown as CallResult & {
+      structuredContent?: Record<string, unknown>;
+    };
+    expect(perf.isError).toBeFalsy();
+    const perfBody = perf.structuredContent as {
+      found: boolean;
+      durationMs: number;
+      slowest: Array<{ name: string; durationMs: number }>;
+    };
+    expect(perfBody.found).toBe(true);
+    expect(perfBody.durationMs).toBe(1630);
+    expect(perfBody.slowest[0]?.name).toBe('big');
+    expect(perfBody.slowest[0]?.durationMs).toBe(1200);
+    expect(JSON.stringify(perfBody).toLowerCase()).not.toMatch(/mock/);
+  });
+
+  it('missing junit is a quiet structured miss and never says mock', async () => {
+    const cwd = makeTmpGitRepo();
+    for (const name of ['get_flakes', 'get_performance'] as const) {
+      const raw = await client.callTool({ name, arguments: { cwd } });
+      const result = raw as unknown as CallResult & {
+        structuredContent?: Record<string, unknown>;
+      };
+      expect(result.isError).toBeFalsy();
+      expect(result.structuredContent?.found).toBe(false);
+      const text = JSON.stringify(result);
+      expect(text.toLowerCase()).not.toMatch(/mock/);
+    }
   });
 });

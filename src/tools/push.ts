@@ -1,5 +1,6 @@
 import { runCli } from '../cli.js';
 import { resolveToolBase } from '../resolve-base.js';
+import { assertSafeReadPath } from '../safe-path.js';
 import { sanitizeChildEnv } from '../sanitize-env.js';
 import { PushInput, PushOutput } from '../schemas.js';
 
@@ -49,6 +50,10 @@ export async function push(input: PushInput): Promise<PushOutput> {
   if (input.mainline === true) args.push('--mainline');
   if (input.owner !== undefined) args.push('--owner', input.owner);
   if (input.name !== undefined) args.push('--name', input.name);
+  if (input.junit !== undefined) {
+    await assertSafeReadPath(cwd, input.junit);
+    args.push('--junit', input.junit);
+  }
 
   const raw = await runCli<unknown>(args, {
     cwd,

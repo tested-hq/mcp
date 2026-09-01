@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   CliDiffOutputSchema,
   CliExplainOutputSchema,
+  GetFlakesOutput,
+  GetPerformanceOutput,
   SafeGitRef,
+  TestReportSchema,
   WriteAndVerifyInput,
 } from '../src/schemas.js';
 
@@ -56,6 +59,45 @@ describe('CLI output schemas', () => {
         files: [],
       }),
     ).toThrow();
+  });
+
+  it('accepts a schemaVersion 1 TestReport and the tab slices', () => {
+    const report = TestReportSchema.parse({
+      schemaVersion: 1,
+      source: 'junit',
+      totals: {
+        tests: 1,
+        passed: 1,
+        failed: 0,
+        skipped: 0,
+        errors: 0,
+        flaky: 0,
+        durationMs: 10,
+      },
+      failures: [],
+      flakes: [],
+      slowest: [{ name: 'ok', durationMs: 10 }],
+    });
+    expect(report.source).toBe('junit');
+    expect(
+      GetFlakesOutput.parse({
+        found: true,
+        tests: 1,
+        failed: 0,
+        errors: 0,
+        skipped: 0,
+        flaky: 0,
+        flakes: [],
+        failures: [],
+      }).found,
+    ).toBe(true);
+    expect(
+      GetPerformanceOutput.parse({
+        found: false,
+        durationMs: 0,
+        slowest: [],
+      }).found,
+    ).toBe(false);
   });
 
   it('parses explain output and rejects a missing field', () => {

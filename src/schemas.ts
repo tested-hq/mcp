@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import { SAFE_GIT_REF_RE } from './git-ref.js';
+import { TestCaseRefSchema } from './junit.js';
+
+export { TestCaseRefSchema, TestReportSchema } from './junit.js';
+export type { TestCaseRef, TestReport } from './junit.js';
 
 // ─── Shared input fields ───────────────────────────────────────────────────
 
@@ -192,6 +196,52 @@ export const CheckOutput = z.object({
 });
 export type CheckOutput = z.infer<typeof CheckOutput>;
 
+export const JunitInput = CwdInput.extend({
+  junit: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Path to JUnit XML (relative to cwd, or absolute under cwd). If omitted, uses TESTED_JUNIT or auto-detects junit.xml, test-results/junit.xml, coverage/junit.xml, reports/junit.xml — same as the CLI.',
+    ),
+});
+export type JunitInput = z.infer<typeof JunitInput>;
+
+export const GetFlakesInput = JunitInput;
+export type GetFlakesInput = z.infer<typeof GetFlakesInput>;
+
+export const GetPerformanceInput = JunitInput;
+export type GetPerformanceInput = z.infer<typeof GetPerformanceInput>;
+
+export const FlakeCaseSchema = TestCaseRefSchema.extend({
+  attempts: z.number().int().positive(),
+});
+
+export const FailureCaseSchema = TestCaseRefSchema.extend({
+  message: z.string().optional(),
+});
+
+/** Tests-tab slice of TestReport. `found` is false when no JUnit file is present. */
+export const GetFlakesOutput = z.object({
+  found: z.boolean(),
+  tests: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  errors: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+  flaky: z.number().int().nonnegative(),
+  flakes: z.array(FlakeCaseSchema).max(50),
+  failures: z.array(FailureCaseSchema).max(50),
+});
+export type GetFlakesOutput = z.infer<typeof GetFlakesOutput>;
+
+/** Performance-tab slice of TestReport. `found` is false when no JUnit file is present. */
+export const GetPerformanceOutput = z.object({
+  found: z.boolean(),
+  durationMs: z.number().nonnegative(),
+  slowest: z.array(TestCaseRefSchema).max(15),
+});
+export type GetPerformanceOutput = z.infer<typeof GetPerformanceOutput>;
+
 export const PushInput = BaseInput.extend({
   token: z
     .string()
@@ -207,6 +257,13 @@ export const PushInput = BaseInput.extend({
     .describe('Upload default-branch coverage only (no share URL).'),
   owner: z.string().optional().describe('Repo owner (default: git remote origin).'),
   name: z.string().optional().describe('Repo name (default: git remote origin).'),
+  junit: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Path to JUnit XML for flakes / suite time. If omitted, the CLI auto-detects the same candidate paths as get_flakes.',
+    ),
 });
 export type PushInput = z.infer<typeof PushInput>;
 

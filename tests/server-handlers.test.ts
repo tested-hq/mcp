@@ -10,6 +10,8 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 const explain = vi.hoisted(() => vi.fn());
 const getUncoveredDiff = vi.hoisted(() => vi.fn());
 const getSummary = vi.hoisted(() => vi.fn());
+const getFlakes = vi.hoisted(() => vi.fn());
+const getPerformance = vi.hoisted(() => vi.fn());
 const writeAndVerify = vi.hoisted(() => vi.fn());
 const check = vi.hoisted(() => vi.fn());
 const push = vi.hoisted(() => vi.fn());
@@ -18,6 +20,8 @@ const doctor = vi.hoisted(() => vi.fn());
 vi.mock('../src/tools/explain.js', () => ({ explain }));
 vi.mock('../src/tools/get_uncovered_diff.js', () => ({ getUncoveredDiff }));
 vi.mock('../src/tools/get_summary.js', () => ({ getSummary }));
+vi.mock('../src/tools/get_flakes.js', () => ({ getFlakes }));
+vi.mock('../src/tools/get_performance.js', () => ({ getPerformance }));
 vi.mock('../src/tools/write_and_verify.js', () => ({ writeAndVerify }));
 vi.mock('../src/tools/check.js', () => ({ check }));
 vi.mock('../src/tools/push.js', () => ({ push }));
@@ -195,6 +199,41 @@ describe('registered tool handlers', () => {
     const result = raw as unknown as CallResult;
     expect(result.isError).toBe(true);
     expect(result.content?.[0]?.text).toMatch(/git repository/);
+  });
+
+  it('get_flakes returns structuredContent on success', async () => {
+    getFlakes.mockResolvedValueOnce({
+      found: true,
+      tests: 5,
+      failed: 1,
+      errors: 0,
+      skipped: 1,
+      flaky: 1,
+      flakes: [{ name: 'retry me', classname: 'auth', durationMs: 130, attempts: 2 }],
+      failures: [{ name: 'login fail', classname: 'auth', durationMs: 200 }],
+    });
+    const raw = await client.callTool({
+      name: 'get_flakes',
+      arguments: { cwd: '/repo' },
+    });
+    const result = raw as unknown as CallResult;
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toMatchObject({ found: true, flaky: 1 });
+  });
+
+  it('get_performance returns structuredContent on success', async () => {
+    getPerformance.mockResolvedValueOnce({
+      found: true,
+      durationMs: 1630,
+      slowest: [{ name: 'big', classname: 'slow', durationMs: 1200 }],
+    });
+    const raw = await client.callTool({
+      name: 'get_performance',
+      arguments: { cwd: '/repo' },
+    });
+    const result = raw as unknown as CallResult;
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toMatchObject({ found: true, durationMs: 1630 });
   });
 
   it('doctor returns structuredContent on success', async () => {

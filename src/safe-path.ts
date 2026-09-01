@@ -119,3 +119,35 @@ export async function assertSafeWritePath(
 
   return logicalTarget;
 }
+
+/**
+ * Validate that a read path (relative or absolute) stays inside cwd.
+ * Absolute paths are allowed when they resolve under cwd — JUnit reports
+ * are often passed as abs paths from CI.
+ *
+ * @returns Absolute logical path suitable for readFile.
+ */
+export async function assertSafeReadPath(
+  cwd: string,
+  pathInput: string,
+): Promise<string> {
+  if (pathInput.includes('\0')) {
+    throw new Error('path must not contain null bytes');
+  }
+
+  const logicalRoot = resolve(cwd);
+  const logicalTarget = isAbsolute(pathInput)
+    ? resolve(pathInput)
+    : resolve(cwd, pathInput);
+  if (!isUnderRoot(logicalRoot, logicalTarget)) {
+    throw new Error(
+      `path resolves outside cwd: ${logicalTarget} not under ${logicalRoot}${sep}`,
+    );
+  }
+
+  const relativePath = logicalTarget.slice(logicalRoot.length).replace(/^[/\\]+/, '');
+  if (!relativePath) {
+    throw new Error(`path must be a file under cwd, got: ${pathInput}`);
+  }
+  return assertSafeWritePath(cwd, relativePath);
+}
