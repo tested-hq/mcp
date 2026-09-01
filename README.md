@@ -218,6 +218,75 @@ When no JUnit file is present, returns `found: false`, `durationMs: 0`, and `slo
 
 ---
 
+### `get_failed`
+
+Failed tests from the **same** JUnit `TestReport` as `get_flakes`: `name`, `file`, `message`, `durationMs`, `alreadyFlaky` (true if that test is also in `flakes[]` this run). Cross-run flake history is the app, not this server.
+
+**Input** — same as `get_flakes`.
+
+**Output**
+
+```json
+{
+  "found": true,
+  "failed": [
+    { "name": "login fail", "durationMs": 200, "message": "expected 200", "alreadyFlaky": false },
+    { "name": "retry me", "durationMs": 130, "alreadyFlaky": true }
+  ]
+}
+```
+
+---
+
+### `coverage_for`
+
+Patch coverage for the files the agent touched. Filter of `tested diff --json` `files[]` (the same `CliFileSchema` as `get_uncovered_diff` / `get_coverage_summary`). Only requested paths are returned.
+
+**Input** — `cwd`, optional `base`, required `paths[]`.
+
+---
+
+### `new_since_main`
+
+Informational delta vs git base (default `origin/main` via the same resolver as other tools): files that lost coverage, tests newly failing/flaky, tests newly in `slowest[]`. Local git + coverage + junit vs base when those blobs exist. If base junit or coverage is missing, that section is a structured miss (`found: false`, `reason`) — never invented.
+
+---
+
+### `who_covers`
+
+Which tests execute `file`:`line`. Reads V8/Istanbul `coverage-final.json`. If the file has no per-test hit map (`testMap` / `tests`), returns `available: false` and a reason. Does not invent test names from `fnMap`.
+
+---
+
+### `duration_delta`
+
+Suite duration and per-test delta vs base/main JUnit. Maps the suite change to the tests that caused it. Same miss rule as `new_since_main` if base junit is not in git.
+
+---
+
+### `uncovered_branches`
+
+Uncovered **branches** in the patch, not only lines. Exposes `kind: branch` ranges from `tested diff --json` when the CLI emits them; otherwise parses Istanbul `branchMap` / `b` for the same files.
+
+---
+
+### `map_uncovered_to_test`
+
+Given uncovered source files (or `get_uncovered_diff` when `paths` is omitted), return the existing colocated `*.test.*` / `__tests__` file they should land in. Used by the close-patch skill.
+
+---
+
+### Skills
+
+Advertised as MCP prompts (`prompts/list`) and `tested://skills/*` resources. Markdown lives in `skills/<name>/SKILL.md`.
+
+| Skill | Sequence |
+|-------|----------|
+| `triage` | `doctor` → `get_failed` → `get_flakes` → `get_uncovered_diff` → one answer: tests vs flake vs holes |
+| `close-patch` | `get_uncovered_diff` → `map_uncovered_to_test` → `write_and_verify` → `check` until green |
+
+---
+
 ### `write_and_verify`
 
 Writes a test file then re-runs the suite with coverage and returns the fresh uncovered-range snapshot, all in one call. This is the preferred tool when an agent is iterating on a test — it cuts the write→re-check roundtrip in half versus a separate write + `get_uncovered_diff` sequence.

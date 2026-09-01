@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { SAFE_GIT_REF_RE } from './git-ref.js';
-import { TestCaseRefSchema } from './junit.js';
+import { FailedCaseSchema, TestCaseRefSchema } from './junit.js';
 
-export { TestCaseRefSchema, TestReportSchema } from './junit.js';
-export type { TestCaseRef, TestReport } from './junit.js';
+export { FailedCaseSchema, TestCaseRefSchema, TestReportSchema } from './junit.js';
+export type { FailedCase, TestCaseRef, TestReport } from './junit.js';
 
 // ─── Shared input fields ───────────────────────────────────────────────────
 
@@ -293,3 +293,136 @@ export const DoctorOutput = z.object({
   ),
 });
 export type DoctorOutput = z.infer<typeof DoctorOutput>;
+
+// ── New tools (same TestReport / CLI diff / Istanbul objects) ───────────────
+
+export const GetFailedInput = JunitInput;
+export type GetFailedInput = z.infer<typeof GetFailedInput>;
+
+export const GetFailedOutput = z.object({
+  found: z.boolean(),
+  failed: z.array(FailedCaseSchema).max(50),
+});
+export type GetFailedOutput = z.infer<typeof GetFailedOutput>;
+
+export const CoverageForInput = BaseInput.extend({
+  paths: z
+    .array(z.string().min(1))
+    .min(1)
+    .describe('Source paths (relative to cwd) to keep from the coverage summary / diff.'),
+});
+export type CoverageForInput = z.infer<typeof CoverageForInput>;
+
+/** Filter of `tested diff --json` `files[]` (CliFileSchema). */
+export const CoverageForOutput = z.object({
+  files: z.array(CliFileSchema),
+  truncated: z.boolean().optional(),
+});
+export type CoverageForOutput = z.infer<typeof CoverageForOutput>;
+
+export const NewSinceMainInput = BaseInput.extend({
+  junit: JunitInput.shape.junit,
+});
+export type NewSinceMainInput = z.infer<typeof NewSinceMainInput>;
+
+export const NewSinceMainOutput = z.object({
+  base: z.string(),
+  coverage: z.object({
+    found: z.boolean(),
+    reason: z.string().optional(),
+    lost: z.array(
+      z.object({
+        path: z.string(),
+        beforePct: z.number(),
+        afterPct: z.number(),
+      }),
+    ),
+  }),
+  junit: z.object({
+    found: z.boolean(),
+    reason: z.string().optional(),
+    newlyFailing: z.array(z.string()),
+    newlyFlaky: z.array(z.string()),
+    newlySlowest: z.array(z.string()),
+  }),
+});
+export type NewSinceMainOutput = z.infer<typeof NewSinceMainOutput>;
+
+export const WhoCoversInput = CwdInput.extend({
+  file: z.string().min(1).describe('Source file, relative to cwd.'),
+  line: z.number().int().positive().describe('1-based line number.'),
+});
+export type WhoCoversInput = z.infer<typeof WhoCoversInput>;
+
+export const WhoCoversOutput = z.object({
+  available: z.boolean(),
+  reason: z.string().optional(),
+  file: z.string(),
+  line: z.number().int(),
+  tests: z.array(z.string()),
+});
+export type WhoCoversOutput = z.infer<typeof WhoCoversOutput>;
+
+export const DurationDeltaInput = BaseInput.extend({
+  junit: JunitInput.shape.junit,
+});
+export type DurationDeltaInput = z.infer<typeof DurationDeltaInput>;
+
+export const DurationDeltaOutput = z.object({
+  found: z.boolean(),
+  reason: z.string().optional(),
+  base: z.string().optional(),
+  suite: z
+    .object({
+      beforeMs: z.number(),
+      afterMs: z.number(),
+      deltaMs: z.number(),
+    })
+    .optional(),
+  tests: z.array(
+    z.object({
+      name: z.string(),
+      classname: z.string().optional(),
+      file: z.string().optional(),
+      beforeMs: z.number().nullable(),
+      afterMs: z.number().nullable(),
+      deltaMs: z.number(),
+    }),
+  ),
+});
+export type DurationDeltaOutput = z.infer<typeof DurationDeltaOutput>;
+
+export const UncoveredBranchesInput = BaseInput;
+export type UncoveredBranchesInput = z.infer<typeof UncoveredBranchesInput>;
+
+export const UncoveredBranchesOutput = z.object({
+  found: z.boolean(),
+  source: z.enum(['cli', 'coverage']).optional(),
+  reason: z.string().optional(),
+  files: z.array(UncoveredDiffFileSchema),
+  truncated: z.boolean().optional(),
+});
+export type UncoveredBranchesOutput = z.infer<typeof UncoveredBranchesOutput>;
+
+export const MapUncoveredToTestInput = BaseInput.extend({
+  paths: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      'Source files to map. If omitted, uses files from get_uncovered_diff.',
+    ),
+});
+export type MapUncoveredToTestInput = z.infer<typeof MapUncoveredToTestInput>;
+
+export const MapUncoveredToTestOutput = z.object({
+  mappings: z.array(
+    z.object({
+      source: z.string(),
+      ranges: z.array(RangeSchema).optional(),
+      testFile: z.string(),
+      existing: z.boolean(),
+      convention: z.enum(['colocate', 'tests-dir', '__tests__', 'nearest', 'suggested']),
+    }),
+  ),
+});
+export type MapUncoveredToTestOutput = z.infer<typeof MapUncoveredToTestOutput>;

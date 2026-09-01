@@ -53,7 +53,15 @@ export const TestReportSchema = z.object({
 export type TestReport = z.infer<typeof TestReportSchema>;
 export type TestCaseRef = z.infer<typeof TestCaseRefSchema>;
 
-type RawCase = {
+/** Failed test from the same grouping as TestReport, including intra-run flakes. */
+export const FailedCaseSchema = TestCaseRefSchema.extend({
+  message: z.string().optional(),
+  /** True when this test is also in TestReport.flakes[] for the same run. */
+  alreadyFlaky: z.boolean(),
+});
+export type FailedCase = z.infer<typeof FailedCaseSchema>;
+
+export type RawCase = {
   name: string;
   classname?: string;
   file?: string;
@@ -241,4 +249,71 @@ export function buildTestReportFromCases(raw: RawCase[]): TestReport {
 
 export function parseJunitToTestReport(xml: string): TestReport {
   return buildTestReportFromCases(parseJunitXml(xml));
+}
+
+function groupedCases(raw: RawCase[]): Array<{
+  attempts: RawCase[];
+  last: RawCase;
+  isFlaky: boolean;
+  hadFail: boolean;
+  ref: TestCaseRef;
+}> {
+  const groups = new Map<string, RawCase[]>();
+  for (const c of raw) {
+    const k = testCaseKey(c.classname, c.name);
+    const list = groups.get(k) ?? [];
+    list.push(c);
+    groups.set(k, list);
+  }
+  const out: Array<{
+    attempts: RawCase[];
+    last: RawCase;
+    isFlaky: boolean;
+    hadFail: boolean;
+    ref: TestCaseRef;
+  }> = [];
+  for (const [, attempts] of groups) {
+    const last = attempts[attempts.length - 1]!;
+    const hadFail = attempts.some((a) => a.status === 'failed' || a.status === 'error');
+    const hadPass = attempts.some((a) => a.status === 'passed');
+    const isFlaky = Boolean(attempts.some((a) => a.flakyAttr) || (hadFail && hadPass));
+    const durationMs = Math.round(attempts.reduce((s, a) => s + a.timeSec, 0) * 1000);
+    out.push({
+      attempts,
+      last,
+      isFlaky,
+      hadFail,
+      ref: {
+        name: last.name,
+        ...(last.classname ? { classname: last.classname } : {}),
+        ...(last.file ? { file: last.file } : {}),
+        durationMs,
+      },
+    });
+  }
+  return out;
+}
+
+/**
+ * Tests that failed or errored at least once this run.
+ * `alreadyFlaky` is true when the same (classname, name) is in flakes[].
+ */
+export function listFailedFromCases(raw: RawCase[]): FailedCase[] {
+  const failed: FailedCase[] = [];
+  for (const g of groupedCases(raw)) {
+    if (!g.hadFail) continue;
+    const withMsg = [...g.attempts].reverse().find((a) => a.message);
+    failed.push({
+      ...g.ref,
+      ...(withMsg?.message ? { message: withMsg.message } : {}),
+      alreadyFlaky: g.isFlaky,
+    });
+    if (failed.length >= 50) break;
+  }
+  return failed;
+}
+
+/** Per-test duration for every grouped case (not only slowest[]). */
+export function listCaseDurations(raw: RawCase[]): TestCaseRef[] {
+  return groupedCases(raw).map((g) => g.ref);
 }

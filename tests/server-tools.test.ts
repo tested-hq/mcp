@@ -68,12 +68,19 @@ interface CallResult {
 
 const READ_ONLY_TOOLS = new Set([
   'check',
+  'coverage_for',
   'doctor',
+  'duration_delta',
   'explain_line',
   'get_coverage_summary',
+  'get_failed',
   'get_flakes',
   'get_performance',
   'get_uncovered_diff',
+  'map_uncovered_to_test',
+  'new_since_main',
+  'uncovered_branches',
+  'who_covers',
 ]);
 
 describe('tools/list shape', () => {
@@ -81,13 +88,20 @@ describe('tools/list shape', () => {
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
       'check',
+      'coverage_for',
       'doctor',
+      'duration_delta',
       'explain_line',
       'get_coverage_summary',
+      'get_failed',
       'get_flakes',
       'get_performance',
       'get_uncovered_diff',
+      'map_uncovered_to_test',
+      'new_since_main',
       'push',
+      'uncovered_branches',
+      'who_covers',
       'write_and_verify',
     ]);
   });
@@ -166,6 +180,28 @@ describe('tool execution error handling', () => {
   });
 });
 
+describe('prompts/list skills', () => {
+  it('advertises triage and close-patch as MCP prompts', async () => {
+    const { prompts } = await client.listPrompts();
+    const names = prompts.map((p) => p.name).sort();
+    expect(names).toEqual(['close-patch', 'triage']);
+    const triage = prompts.find((p) => p.name === 'triage');
+    expect(triage?.description).toMatch(/get_failed/);
+    const close = prompts.find((p) => p.name === 'close-patch');
+    expect(close?.description).toMatch(/map_uncovered_to_test/);
+  });
+
+  it('getPrompt(close-patch) sequences the real tools', async () => {
+    const prompt = await client.getPrompt({ name: 'close-patch' });
+    const text = prompt.messages.map((m) => JSON.stringify(m)).join('\n');
+    expect(text).toMatch(/get_uncovered_diff/);
+    expect(text).toMatch(/map_uncovered_to_test/);
+    expect(text).toMatch(/write_and_verify/);
+    expect(text).toMatch(/check/);
+    expect(text.toLowerCase()).not.toMatch(/mock/);
+  });
+});
+
 describe('get_flakes + get_performance (real JUnit fixture)', () => {
   const prevJunit = process.env['TESTED_JUNIT'];
   beforeAll(() => {
@@ -224,11 +260,28 @@ describe('get_flakes + get_performance (real JUnit fixture)', () => {
     expect(perfBody.slowest[0]?.name).toBe('big');
     expect(perfBody.slowest[0]?.durationMs).toBe(1200);
     expect(JSON.stringify(perfBody).toLowerCase()).not.toMatch(/mock/);
+
+    const failedRaw = await client.callTool({
+      name: 'get_failed',
+      arguments: { cwd },
+    });
+    const failed = failedRaw as unknown as CallResult & {
+      structuredContent?: Record<string, unknown>;
+    };
+    expect(failed.isError).toBeFalsy();
+    const failedBody = failed.structuredContent as {
+      found: boolean;
+      failed: Array<{ name: string; alreadyFlaky: boolean; durationMs: number }>;
+    };
+    expect(failedBody.found).toBe(true);
+    expect(failedBody.failed.find((f) => f.name === 'login fail')?.alreadyFlaky).toBe(false);
+    expect(failedBody.failed.find((f) => f.name === 'retry me')?.alreadyFlaky).toBe(true);
+    expect(JSON.stringify(failedBody).toLowerCase()).not.toMatch(/mock/);
   });
 
   it('missing junit is a quiet structured miss and never says mock', async () => {
     const cwd = makeTmpGitRepo();
-    for (const name of ['get_flakes', 'get_performance'] as const) {
+    for (const name of ['get_flakes', 'get_performance', 'get_failed'] as const) {
       const raw = await client.callTool({ name, arguments: { cwd } });
       const result = raw as unknown as CallResult & {
         structuredContent?: Record<string, unknown>;

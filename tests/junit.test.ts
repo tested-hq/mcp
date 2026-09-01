@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
   buildTestReportFromCases,
+  listFailedFromCases,
   parseJunitToTestReport,
   parseJunitXml,
   TestReportSchema,
@@ -32,6 +33,10 @@ describe('junit parse (shared TestReport schema)', () => {
     expect(report.failures.some((f) => f.name === 'login fail')).toBe(true);
     expect(report.slowest[0]?.name).toBe('big');
     expect(report.slowest[0]?.durationMs).toBe(1200);
+
+    const failed = listFailedFromCases(cases);
+    expect(failed.find((f) => f.name === 'login fail')?.alreadyFlaky).toBe(false);
+    expect(failed.find((f) => f.name === 'retry me')?.alreadyFlaky).toBe(true);
   });
 
   it('respects flaky attribute', () => {

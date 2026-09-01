@@ -64,13 +64,20 @@ describe.skipIf(!CLI_AVAILABLE)('stdio integration', () => {
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
       'check',
+      'coverage_for',
       'doctor',
+      'duration_delta',
       'explain_line',
       'get_coverage_summary',
+      'get_failed',
       'get_flakes',
       'get_performance',
       'get_uncovered_diff',
+      'map_uncovered_to_test',
+      'new_since_main',
       'push',
+      'uncovered_branches',
+      'who_covers',
       'write_and_verify',
     ]);
     console.log('Tool list:', names);
