@@ -67,6 +67,8 @@ describe.skipIf(!CLI_AVAILABLE)('stdio integration', () => {
       'doctor',
       'explain_line',
       'get_coverage_summary',
+      'get_flakes',
+      'get_performance',
       'get_uncovered_diff',
       'push',
       'write_and_verify',

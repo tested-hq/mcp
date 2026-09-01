@@ -101,7 +101,7 @@ describe('push', () => {
       name: 'app',
       base: 'HEAD',
     });
-    expect(runCliMock).toHaveBeenCalledWith(
+      expect(runCliMock).toHaveBeenCalledWith(
       [
         'push',
         '--json',
@@ -116,5 +116,24 @@ describe('push', () => {
       ],
       expect.objectContaining({ cwd, allowNonZero: true }),
     );
+  });
+
+  it('forwards a safe junit path as --junit', async () => {
+    runCliMock.mockResolvedValueOnce({ shareUrl: 'https://app.tested.dev/s/z' });
+    const cwd = repoWithCommits();
+    writeFileSync(join(cwd, 'junit.xml'), '<testsuite/>');
+    await push({ cwd, token: 't', mainline: true, junit: 'junit.xml' });
+    expect(runCliMock).toHaveBeenCalledWith(
+      ['push', '--json', '--base', expect.any(String), '--mainline', '--junit', 'junit.xml'],
+      expect.objectContaining({ cwd, allowNonZero: true }),
+    );
+  });
+
+  it('rejects a junit path that escapes cwd', async () => {
+    const cwd = repoWithCommits();
+    await expect(
+      push({ cwd, token: 't', mainline: true, junit: '../escape.xml' }),
+    ).rejects.toThrow(/outside/);
+    expect(runCliMock).not.toHaveBeenCalled();
   });
 });

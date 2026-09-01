@@ -1,6 +1,6 @@
 # @tested/mcp
 
-MCP server that wraps the `@tested/cli` binary and exposes coverage tools over stdio for use with Claude Code, Cursor, or any MCP-compatible client.
+MCP server that wraps the `@tested/cli` binary and exposes coverage plus JUnit test-analytics tools over stdio for use with Claude Code, Cursor, or any MCP-compatible client.
 
 ## Security (read first)
 
@@ -160,6 +160,64 @@ Returns a per-file line-count summary plus rolled-up patch and project statistic
 
 ---
 
+### `get_flakes`
+
+Returns flake and failure analytics from a local JUnit report — the same `TestReport` schema as the tested.dev **Tests** tab. Intra-run only (fail+pass in one XML, or `flaky=true`). Read-only; does not fail the PR.
+
+**Input**
+
+| Field   | Type     | Default | Description |
+|---------|----------|---------|-------------|
+| `cwd`   | `string` | required | Absolute path to the git repository root |
+| `junit` | `string` | auto-detect | JUnit XML path (relative to cwd, or absolute under cwd). If omitted: `TESTED_JUNIT`, then `junit.xml`, `test-results/junit.xml`, `coverage/junit.xml`, `reports/junit.xml` |
+
+**Output**
+
+```json
+{
+  "found": true,
+  "tests": 5,
+  "failed": 1,
+  "errors": 0,
+  "skipped": 1,
+  "flaky": 1,
+  "flakes": [
+    { "name": "retry me", "classname": "auth", "durationMs": 130, "attempts": 2 }
+  ],
+  "failures": [
+    { "name": "login fail", "classname": "auth", "durationMs": 200, "message": "expected 200" }
+  ]
+}
+```
+
+When no JUnit file is present, returns `found: false` and empty lists (quiet miss — not an error).
+
+---
+
+### `get_performance`
+
+Returns suite duration and the slowest tests from the same JUnit `TestReport` — the tested.dev **Performance** tab. Read-only; does not fail the PR.
+
+**Input**
+
+Same as `get_flakes` (`cwd` required, `junit` optional / auto-detect).
+
+**Output**
+
+```json
+{
+  "found": true,
+  "durationMs": 1630,
+  "slowest": [
+    { "name": "big", "classname": "slow", "durationMs": 1200 }
+  ]
+}
+```
+
+When no JUnit file is present, returns `found: false`, `durationMs: 0`, and `slowest: []`.
+
+---
+
 ### `write_and_verify`
 
 Writes a test file then re-runs the suite with coverage and returns the fresh uncovered-range snapshot, all in one call. This is the preferred tool when an agent is iterating on a test — it cuts the write→re-check roundtrip in half versus a separate write + `get_uncovered_diff` sequence.
@@ -209,7 +267,7 @@ Thin wrapper for `tested check --json`. Reports whether patch and project covera
 
 ### `push`
 
-Thin wrapper for `tested push --json`. Requires a `token` argument or `TESTED_TOKEN` in the MCP server environment. The token is injected only into the `tested push` child after `sanitizeChildEnv`; it is never forwarded to the test runner.
+Thin wrapper for `tested push --json`. Requires a `token` argument or `TESTED_TOKEN` in the MCP server environment. The token is injected only into the `tested push` child after `sanitizeChildEnv`; it is never forwarded to the test runner. Optional `junit` is forwarded as `--junit` so agents can upload the same report `get_flakes` / `get_performance` read.
 
 ### `doctor`
 

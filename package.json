@@ -1,7 +1,7 @@
 {
   "name": "@tested/mcp",
   "version": "0.1.1",
-  "description": "MCP server exposing tested coverage tools over stdio for Claude Code / Cursor / Claude API.",
+  "description": "MCP server exposing tested coverage and JUnit flake/performance tools over stdio for Claude Code / Cursor / Claude API.",
   "license": "MIT",
   "homepage": "https://tested.dev",
   "repository": {

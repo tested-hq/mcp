@@ -10,6 +10,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  assertSafeReadPath,
   assertSafeWritePath,
   isUnderRoot,
   realpathDeepestExisting,
@@ -31,6 +32,22 @@ describe('isUnderRoot', () => {
   it('rejects sibling prefix collisions', () => {
     expect(isUnderRoot('/repo', '/repo-evil/x')).toBe(false);
     expect(isUnderRoot('/repo', '/etc/passwd')).toBe(false);
+  });
+});
+
+describe('assertSafeReadPath', () => {
+  it('accepts a relative path and an absolute path under cwd', async () => {
+    writeFileSync(join(tmpDir, 'junit.xml'), '<testsuite/>');
+    const rel = await assertSafeReadPath(tmpDir, 'junit.xml');
+    expect(rel).toBe(join(tmpDir, 'junit.xml'));
+    const abs = await assertSafeReadPath(tmpDir, join(tmpDir, 'junit.xml'));
+    expect(abs).toBe(join(tmpDir, 'junit.xml'));
+  });
+
+  it('rejects an absolute path outside cwd', async () => {
+    await expect(assertSafeReadPath(tmpDir, '/etc/passwd')).rejects.toThrow(
+      /outside/,
+    );
   });
 });
 

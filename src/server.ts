@@ -5,6 +5,8 @@
  *   get_uncovered_diff    — uncovered line ranges in the current diff
  *   explain_line          — coverage status for a specific line
  *   get_coverage_summary  — per-file line-count summary for the diff
+ *   get_flakes            — Tests-tab flake / failure analytics from JUnit
+ *   get_performance       — Performance-tab duration / slowest from JUnit
  *   write_and_verify      — write a test file and re-run coverage
  *   check                 — patch / project coverage gate
  *   push                  — upload coverage to tested.dev
@@ -27,6 +29,8 @@ import { z } from 'zod';
 import { explain } from './tools/explain.js';
 import { getUncoveredDiff } from './tools/get_uncovered_diff.js';
 import { getSummary } from './tools/get_summary.js';
+import { getFlakes } from './tools/get_flakes.js';
+import { getPerformance } from './tools/get_performance.js';
 import { writeAndVerify } from './tools/write_and_verify.js';
 import { check } from './tools/check.js';
 import { push } from './tools/push.js';
@@ -35,6 +39,8 @@ import {
   CheckOutput,
   DoctorOutput,
   ExplainOutput,
+  GetFlakesOutput,
+  GetPerformanceOutput,
   GetSummaryOutput,
   GetUncoveredDiffOutput,
   PushOutput,
@@ -49,6 +55,13 @@ const cwdField = z
   .string()
   .describe(
     'Absolute path to a git repository root (directory containing .git/). Relative paths are rejected.',
+  );
+const junitField = z
+  .string()
+  .min(1)
+  .optional()
+  .describe(
+    'Path to JUnit XML (relative to cwd, or absolute under cwd). If omitted, uses TESTED_JUNIT or auto-detects junit.xml, test-results/junit.xml, coverage/junit.xml, reports/junit.xml — same as the CLI.',
   );
 const baseField = z
   .string()
@@ -184,6 +197,70 @@ export function createServer(): McpServer {
     },
   );
 
+  // ── get_flakes ───────────────────────────────────────────────────────────
+  server.registerTool(
+    'get_flakes',
+    {
+      title: 'Get flake and failure analytics',
+      description:
+        'Returns flake and failure counts from a local JUnit report — the same TestReport ' +
+        'schema as the tested.dev Tests tab. Intra-run flakes only (fail+pass in one XML, or flaky=true). ' +
+        'Read-only; does not gate the PR. When no JUnit file is found, returns found:false and empty lists.',
+      inputSchema: {
+        cwd: cwdField,
+        junit: junitField,
+      },
+      outputSchema: GetFlakesOutput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async ({ cwd, junit }) => {
+      try {
+        const result = await getFlakes({
+          cwd,
+          ...(junit !== undefined ? { junit } : {}),
+        });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent: result as Record<string, unknown>,
+        };
+      } catch (err) {
+        return toErrorResult(err);
+      }
+    },
+  );
+
+  // ── get_performance ──────────────────────────────────────────────────────
+  server.registerTool(
+    'get_performance',
+    {
+      title: 'Get suite duration and slowest tests',
+      description:
+        'Returns suite durationMs and the slowest tests from a local JUnit report — the same ' +
+        'TestReport schema as the tested.dev Performance tab. Read-only; does not gate the PR. ' +
+        'When no JUnit file is found, returns found:false and an empty slowest list.',
+      inputSchema: {
+        cwd: cwdField,
+        junit: junitField,
+      },
+      outputSchema: GetPerformanceOutput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async ({ cwd, junit }) => {
+      try {
+        const result = await getPerformance({
+          cwd,
+          ...(junit !== undefined ? { junit } : {}),
+        });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent: result as Record<string, unknown>,
+        };
+      } catch (err) {
+        return toErrorResult(err);
+      }
+    },
+  );
+
   // ── write_and_verify ─────────────────────────────────────────────────────
   server.registerTool(
     'write_and_verify',
@@ -259,7 +336,7 @@ export function createServer(): McpServer {
       title: 'Push coverage to tested.dev',
       description:
         'Runs `tested push --json`. Requires a token argument or TESTED_TOKEN in the MCP server environment. ' +
-        'The token is not forwarded to the test runner.',
+        'The token is not forwarded to the test runner. Optional junit is passed through as --junit.',
       inputSchema: {
         cwd: cwdField,
         base: baseField,
@@ -277,11 +354,12 @@ export function createServer(): McpServer {
           .describe('Upload default-branch coverage only (no share URL).'),
         owner: z.string().optional(),
         name: z.string().optional(),
+        junit: junitField,
       },
       outputSchema: PushOutput.shape,
       annotations: PUSH_ANNOTATIONS,
     },
-    async ({ cwd, base, token, pr, mainline, owner, name }) => {
+    async ({ cwd, base, token, pr, mainline, owner, name, junit }) => {
       try {
         const result = await push({
           cwd,
@@ -291,6 +369,7 @@ export function createServer(): McpServer {
           ...(mainline !== undefined ? { mainline } : {}),
           ...(owner !== undefined ? { owner } : {}),
           ...(name !== undefined ? { name } : {}),
+          ...(junit !== undefined ? { junit } : {}),
         });
         return {
           content: [{ type: 'text', text: JSON.stringify(result) }],
