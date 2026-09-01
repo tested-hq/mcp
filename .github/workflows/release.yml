@@ -42,7 +42,7 @@ jobs:
           TAG="$RELEASE_TAG"
           if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::Ref '$TAG' is not a vX.Y.Z release tag. Refusing to publish."
-            echo "Create a GitHub Release from a tag like v0.1.2 (package.json must be 0.1.2)."
+            echo "Create a GitHub Release from a tag like v0.1.3 (package.json must be 0.1.3)."
             echo "workflow_dispatch only publishes when run on that tag — not on main."
             exit 1
           fi
