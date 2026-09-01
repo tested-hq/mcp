@@ -99,6 +99,36 @@ describe('CLI output schemas', () => {
       }).found,
     ).toBe(false);
   });
+});
+
+describe('new tool output schemas', () => {
+  it('parses get_failed / who_covers miss shapes', async () => {
+    const { GetFailedOutput, WhoCoversOutput, DurationDeltaOutput } = await import(
+      '../src/schemas.js'
+    );
+    expect(
+      GetFailedOutput.parse({
+        found: true,
+        failed: [{ name: 'x', durationMs: 1, alreadyFlaky: false }],
+      }).failed[0]?.alreadyFlaky,
+    ).toBe(false);
+    expect(
+      WhoCoversOutput.parse({
+        available: false,
+        reason: 'coverage-final.json has no per-test hit map',
+        file: 'src/a.ts',
+        line: 1,
+        tests: [],
+      }).available,
+    ).toBe(false);
+    expect(
+      DurationDeltaOutput.parse({
+        found: false,
+        reason: 'base junit not found at HEAD',
+        tests: [],
+      }).found,
+    ).toBe(false);
+  });
 
   it('parses explain output and rejects a missing field', () => {
     expect(

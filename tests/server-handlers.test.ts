@@ -12,6 +12,13 @@ const getUncoveredDiff = vi.hoisted(() => vi.fn());
 const getSummary = vi.hoisted(() => vi.fn());
 const getFlakes = vi.hoisted(() => vi.fn());
 const getPerformance = vi.hoisted(() => vi.fn());
+const getFailed = vi.hoisted(() => vi.fn());
+const coverageFor = vi.hoisted(() => vi.fn());
+const newSinceMain = vi.hoisted(() => vi.fn());
+const whoCovers = vi.hoisted(() => vi.fn());
+const durationDelta = vi.hoisted(() => vi.fn());
+const uncoveredBranches = vi.hoisted(() => vi.fn());
+const mapUncoveredToTest = vi.hoisted(() => vi.fn());
 const writeAndVerify = vi.hoisted(() => vi.fn());
 const check = vi.hoisted(() => vi.fn());
 const push = vi.hoisted(() => vi.fn());
@@ -22,6 +29,13 @@ vi.mock('../src/tools/get_uncovered_diff.js', () => ({ getUncoveredDiff }));
 vi.mock('../src/tools/get_summary.js', () => ({ getSummary }));
 vi.mock('../src/tools/get_flakes.js', () => ({ getFlakes }));
 vi.mock('../src/tools/get_performance.js', () => ({ getPerformance }));
+vi.mock('../src/tools/get_failed.js', () => ({ getFailed }));
+vi.mock('../src/tools/coverage_for.js', () => ({ coverageFor }));
+vi.mock('../src/tools/new_since_main.js', () => ({ newSinceMain }));
+vi.mock('../src/tools/who_covers.js', () => ({ whoCovers }));
+vi.mock('../src/tools/duration_delta.js', () => ({ durationDelta }));
+vi.mock('../src/tools/uncovered_branches.js', () => ({ uncoveredBranches }));
+vi.mock('../src/tools/map_uncovered_to_test.js', () => ({ mapUncoveredToTest }));
 vi.mock('../src/tools/write_and_verify.js', () => ({ writeAndVerify }));
 vi.mock('../src/tools/check.js', () => ({ check }));
 vi.mock('../src/tools/push.js', () => ({ push }));
@@ -234,6 +248,128 @@ describe('registered tool handlers', () => {
     const result = raw as unknown as CallResult;
     expect(result.isError).toBeFalsy();
     expect(result.structuredContent).toMatchObject({ found: true, durationMs: 1630 });
+  });
+
+  it('new read tools return structuredContent on success', async () => {
+    getFailed.mockResolvedValueOnce({
+      found: true,
+      failed: [{ name: 'x', durationMs: 1, alreadyFlaky: false }],
+    });
+    coverageFor.mockResolvedValueOnce({
+      files: [{ path: 'src/a.ts', patchCoverage: 50, projectCoverage: 80, uncoveredRanges: [] }],
+    });
+    newSinceMain.mockResolvedValueOnce({
+      base: 'HEAD',
+      coverage: { found: false, lost: [], reason: 'missing' },
+      junit: { found: false, newlyFailing: [], newlyFlaky: [], newlySlowest: [], reason: 'missing' },
+    });
+    whoCovers.mockResolvedValueOnce({
+      available: false,
+      reason: 'no per-test hit map',
+      file: 'src/a.ts',
+      line: 1,
+      tests: [],
+    });
+    durationDelta.mockResolvedValueOnce({
+      found: false,
+      reason: 'base junit not found at HEAD',
+      tests: [],
+    });
+    uncoveredBranches.mockResolvedValueOnce({
+      found: true,
+      source: 'coverage',
+      files: [{ path: 'src/a.ts', ranges: [{ start: 2, end: 2, kind: 'branch' }] }],
+    });
+    mapUncoveredToTest.mockResolvedValueOnce({
+      mappings: [
+        {
+          source: 'src/a.ts',
+          testFile: 'src/a.test.ts',
+          existing: false,
+          convention: 'suggested',
+        },
+      ],
+    });
+
+    const failed = await client.callTool({ name: 'get_failed', arguments: { cwd: '/repo' } });
+    expect((failed as unknown as CallResult).structuredContent?.found).toBe(true);
+
+    const cov = await client.callTool({
+      name: 'coverage_for',
+      arguments: { cwd: '/repo', paths: ['src/a.ts'] },
+    });
+    expect((cov as unknown as CallResult).structuredContent?.files).toHaveLength(1);
+
+    const since = await client.callTool({ name: 'new_since_main', arguments: { cwd: '/repo' } });
+    expect((since as unknown as CallResult).structuredContent?.base).toBe('HEAD');
+
+    const who = await client.callTool({
+      name: 'who_covers',
+      arguments: { cwd: '/repo', file: 'src/a.ts', line: 1 },
+    });
+    expect((who as unknown as CallResult).structuredContent?.available).toBe(false);
+
+    const dur = await client.callTool({ name: 'duration_delta', arguments: { cwd: '/repo' } });
+    expect((dur as unknown as CallResult).structuredContent?.found).toBe(false);
+
+    const branches = await client.callTool({
+      name: 'uncovered_branches',
+      arguments: { cwd: '/repo' },
+    });
+    expect((branches as unknown as CallResult).structuredContent?.source).toBe('coverage');
+
+    const mapped = await client.callTool({
+      name: 'map_uncovered_to_test',
+      arguments: { cwd: '/repo', paths: ['src/a.ts'] },
+    });
+    expect((mapped as unknown as CallResult).structuredContent?.mappings).toHaveLength(1);
+  });
+
+  it('new read tools return isError:true when the implementation throws', async () => {
+    getFailed.mockRejectedValueOnce(new Error('cwd must be an absolute path'));
+    const raw = await client.callTool({ name: 'get_failed', arguments: { cwd: '/repo' } });
+    expect((raw as unknown as CallResult).isError).toBe(true);
+    expect((raw as unknown as CallResult).content?.[0]?.text).toMatch(/absolute/);
+
+    coverageFor.mockRejectedValueOnce(new Error('tested exited with code 1'));
+    const cov = await client.callTool({
+      name: 'coverage_for',
+      arguments: { cwd: '/repo', paths: ['src/a.ts'] },
+    });
+    expect((cov as unknown as CallResult).isError).toBe(true);
+
+    whoCovers.mockRejectedValueOnce(new Error('cwd must be an absolute path'));
+    const who = await client.callTool({
+      name: 'who_covers',
+      arguments: { cwd: '/repo', file: 'a.ts', line: 1 },
+    });
+    expect((who as unknown as CallResult).isError).toBe(true);
+
+    durationDelta.mockRejectedValueOnce(new Error('cwd must be an absolute path'));
+    expect(
+      ((await client.callTool({ name: 'duration_delta', arguments: { cwd: '/repo' } })) as unknown as CallResult)
+        .isError,
+    ).toBe(true);
+
+    newSinceMain.mockRejectedValueOnce(new Error('cwd must be an absolute path'));
+    expect(
+      ((await client.callTool({ name: 'new_since_main', arguments: { cwd: '/repo' } })) as unknown as CallResult)
+        .isError,
+    ).toBe(true);
+
+    uncoveredBranches.mockRejectedValueOnce(new Error('cwd must be an absolute path'));
+    expect(
+      ((await client.callTool({ name: 'uncovered_branches', arguments: { cwd: '/repo' } })) as unknown as CallResult)
+        .isError,
+    ).toBe(true);
+
+    mapUncoveredToTest.mockRejectedValueOnce(new Error('cwd must be an absolute path'));
+    expect(
+      ((await client.callTool({
+        name: 'map_uncovered_to_test',
+        arguments: { cwd: '/repo' },
+      })) as unknown as CallResult).isError,
+    ).toBe(true);
   });
 
   it('doctor returns structuredContent on success', async () => {

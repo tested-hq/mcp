@@ -7,10 +7,21 @@
  *   get_coverage_summary  — per-file line-count summary for the diff
  *   get_flakes            — Tests-tab flake / failure analytics from JUnit
  *   get_performance       — Performance-tab duration / slowest from JUnit
+ *   get_failed            — failed tests from the same TestReport (alreadyFlaky)
+ *   coverage_for          — patch coverage filtered to requested paths
+ *   new_since_main        — coverage/junit delta vs git base
+ *   who_covers            — tests that execute a line (or available:false)
+ *   duration_delta        — suite/per-test duration vs base junit
+ *   uncovered_branches    — uncovered branch ranges in the patch
+ *   map_uncovered_to_test — colocate / nearest *.test.* for uncovered files
  *   write_and_verify      — write a test file and re-run coverage
  *   check                 — patch / project coverage gate
  *   push                  — upload coverage to tested.dev
  *   doctor                — local environment diagnostics
+ *
+ * Skills (MCP prompts + tested://skills/* resources):
+ *   triage                — CI red → tests vs flake vs holes
+ *   close-patch           — uncovered ranges → write_and_verify → check
  *
  * Tool names use snake_case (no dots). Most MCP clients (Claude Code, Cursor)
  * flatten tool names to `mcp__<server>__<tool>`; dotted names break that
@@ -31,19 +42,34 @@ import { getUncoveredDiff } from './tools/get_uncovered_diff.js';
 import { getSummary } from './tools/get_summary.js';
 import { getFlakes } from './tools/get_flakes.js';
 import { getPerformance } from './tools/get_performance.js';
+import { getFailed } from './tools/get_failed.js';
+import { coverageFor } from './tools/coverage_for.js';
+import { newSinceMain } from './tools/new_since_main.js';
+import { whoCovers } from './tools/who_covers.js';
+import { durationDelta } from './tools/duration_delta.js';
+import { uncoveredBranches } from './tools/uncovered_branches.js';
+import { mapUncoveredToTest } from './tools/map_uncovered_to_test.js';
 import { writeAndVerify } from './tools/write_and_verify.js';
 import { check } from './tools/check.js';
 import { push } from './tools/push.js';
 import { doctor } from './tools/doctor.js';
+import { registerSkills } from './skills.js';
 import {
   CheckOutput,
+  CoverageForOutput,
   DoctorOutput,
+  DurationDeltaOutput,
   ExplainOutput,
+  GetFailedOutput,
   GetFlakesOutput,
   GetPerformanceOutput,
   GetSummaryOutput,
   GetUncoveredDiffOutput,
+  MapUncoveredToTestOutput,
+  NewSinceMainOutput,
   PushOutput,
+  UncoveredBranchesOutput,
+  WhoCoversOutput,
   WriteAndVerifyOutput,
 } from './schemas.js';
 import { toErrorResult } from './tool-error.js';
@@ -407,5 +433,235 @@ export function createServer(): McpServer {
     },
   );
 
+  // ── get_failed ───────────────────────────────────────────────────────────
+  server.registerTool(
+    'get_failed',
+    {
+      title: 'Get failed tests',
+      description:
+        'Failed tests from the same JUnit TestReport as get_flakes: name, file, message, duration, alreadyFlaky ' +
+        '(true if that test is also in flakes[] this run). Quiet miss when no JUnit file is present.',
+      inputSchema: {
+        cwd: cwdField,
+        junit: junitField,
+      },
+      outputSchema: GetFailedOutput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async ({ cwd, junit }) => {
+      try {
+        const result = await getFailed({
+          cwd,
+          ...(junit !== undefined ? { junit } : {}),
+        });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent: result as Record<string, unknown>,
+        };
+      } catch (err) {
+        return toErrorResult(err);
+      }
+    },
+  );
+
+  // ── coverage_for ─────────────────────────────────────────────────────────
+  server.registerTool(
+    'coverage_for',
+    {
+      title: 'Coverage for paths',
+      description:
+        'Patch coverage for the files the agent touched. Filter of `tested diff --json` files[] ' +
+        '(same CliFileSchema as get_uncovered_diff / get_coverage_summary). Only requested paths are returned.',
+      inputSchema: {
+        cwd: cwdField,
+        base: baseField,
+        paths: z
+          .array(z.string().min(1))
+          .min(1)
+          .describe('Source paths relative to cwd to keep from the coverage diff.'),
+      },
+      outputSchema: CoverageForOutput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async ({ cwd, base, paths }) => {
+      try {
+        const result = await coverageFor({
+          cwd,
+          paths,
+          ...(base !== undefined ? { base } : {}),
+        });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent: result as Record<string, unknown>,
+        };
+      } catch (err) {
+        return toErrorResult(err);
+      }
+    },
+  );
+
+  // ── new_since_main ───────────────────────────────────────────────────────
+  server.registerTool(
+    'new_since_main',
+    {
+      title: 'What changed since base',
+      description:
+        'Informational delta vs git base (default origin/main): files that lost coverage, tests newly failing/flaky, ' +
+        'tests newly in slowest[]. If base junit or coverage is missing, the matching section is a structured miss — never invented.',
+      inputSchema: {
+        cwd: cwdField,
+        base: baseField,
+        junit: junitField,
+      },
+      outputSchema: NewSinceMainOutput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async ({ cwd, base, junit }) => {
+      try {
+        const result = await newSinceMain({
+          cwd,
+          ...(base !== undefined ? { base } : {}),
+          ...(junit !== undefined ? { junit } : {}),
+        });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent: result as Record<string, unknown>,
+        };
+      } catch (err) {
+        return toErrorResult(err);
+      }
+    },
+  );
+
+  // ── who_covers ───────────────────────────────────────────────────────────
+  server.registerTool(
+    'who_covers',
+    {
+      title: 'Which tests cover a line',
+      description:
+        'Which tests execute this line, from V8/Istanbul coverage-final.json. ' +
+        'If the file has no per-test hit map, returns available:false and a reason — never invents test names.',
+      inputSchema: {
+        cwd: cwdField,
+        file: z.string().min(1).describe('Source file, relative to cwd.'),
+        line: z.number().int().positive().describe('1-based line number.'),
+      },
+      outputSchema: WhoCoversOutput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async ({ cwd, file, line }) => {
+      try {
+        const result = await whoCovers({ cwd, file, line });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent: result as Record<string, unknown>,
+        };
+      } catch (err) {
+        return toErrorResult(err);
+      }
+    },
+  );
+
+  // ── duration_delta ───────────────────────────────────────────────────────
+  server.registerTool(
+    'duration_delta',
+    {
+      title: 'Duration delta vs base',
+      description:
+        'Suite duration and per-test delta vs base/main JUnit. Maps the suite change to the tests that caused it. ' +
+        'If base junit is not in git, returns found:false with a reason — never invents timings.',
+      inputSchema: {
+        cwd: cwdField,
+        base: baseField,
+        junit: junitField,
+      },
+      outputSchema: DurationDeltaOutput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async ({ cwd, base, junit }) => {
+      try {
+        const result = await durationDelta({
+          cwd,
+          ...(base !== undefined ? { base } : {}),
+          ...(junit !== undefined ? { junit } : {}),
+        });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent: result as Record<string, unknown>,
+        };
+      } catch (err) {
+        return toErrorResult(err);
+      }
+    },
+  );
+
+  // ── uncovered_branches ───────────────────────────────────────────────────
+  server.registerTool(
+    'uncovered_branches',
+    {
+      title: 'Uncovered branches in the patch',
+      description:
+        'Uncovered branches in the patch, not only lines. Exposes kind:branch ranges from `tested diff --json` ' +
+        'when present; otherwise parses Istanbul branchMap for the same files.',
+      inputSchema: {
+        cwd: cwdField,
+        base: baseField,
+      },
+      outputSchema: UncoveredBranchesOutput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async ({ cwd, base }) => {
+      try {
+        const result = await uncoveredBranches({
+          cwd,
+          ...(base !== undefined ? { base } : {}),
+        });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent: result as Record<string, unknown>,
+        };
+      } catch (err) {
+        return toErrorResult(err);
+      }
+    },
+  );
+
+  // ── map_uncovered_to_test ────────────────────────────────────────────────
+  server.registerTool(
+    'map_uncovered_to_test',
+    {
+      title: 'Map uncovered files to a test file',
+      description:
+        'Given uncovered source files (or get_uncovered_diff), return the existing colocated `*.test.*` / `__tests__` file ' +
+        'they should land in. Used by the close-patch skill. Does not guess when a conventional file already exists.',
+      inputSchema: {
+        cwd: cwdField,
+        base: baseField,
+        paths: z
+          .array(z.string().min(1))
+          .optional()
+          .describe('Source files to map. If omitted, uses files from get_uncovered_diff.'),
+      },
+      outputSchema: MapUncoveredToTestOutput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async ({ cwd, base, paths }) => {
+      try {
+        const result = await mapUncoveredToTest({
+          cwd,
+          ...(base !== undefined ? { base } : {}),
+          ...(paths !== undefined ? { paths } : {}),
+        });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent: result as Record<string, unknown>,
+        };
+      } catch (err) {
+        return toErrorResult(err);
+      }
+    },
+  );
+
+  registerSkills(server);
   return server;
 }
