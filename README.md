@@ -103,7 +103,7 @@ All read the same JUnit report. A missing report returns `found: false`.
 | `duration_delta` | `cwd`, `base?`, `junit?` | Suite and per-test duration against the JUnit report committed at `base` |
 | `new_since_main` | `cwd`, `base?`, `junit?` | Files that lost coverage, and tests newly failing, flaky, or slowest, against `base` |
 
-Flake detection is per report. Cross-run history lives in the app.
+Flake detection is per report.
 
 `duration_delta` and `new_since_main` read the base coverage and JUnit files with `git show <base>:<path>`. When those files are not committed at `base`, that section returns `found: false` with a `reason`.
 
